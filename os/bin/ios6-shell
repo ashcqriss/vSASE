@@ -12,6 +12,22 @@ set -euo pipefail
 UI="${IOS6_UI:-/usr/share/ios6/index.html}"
 URL="file://${UI}?kiosk=1"
 
+# prefer the loopback HTTP server built into ios6d: query strings survive
+# (WebKit strips them from file:// URLs) and the system bridge is same-origin
+if command -v ios6d >/dev/null; then
+    if ! (exec 3<>/dev/tcp/127.0.0.1/9641) 2>/dev/null; then
+        ios6d >>/var/log/ios6d.log 2>&1 &
+        disown || true
+    fi
+    for _ in $(seq 1 20); do
+        if (exec 3<>/dev/tcp/127.0.0.1/9641) 2>/dev/null; then
+            URL="http://127.0.0.1:9641/index.html?kiosk=1"
+            break
+        fi
+        sleep 0.2
+    done
+fi
+
 if ! command -v cage >/dev/null; then
     echo "ios6-shell: cage is not installed (pacman -S cage)" >&2
     exit 1
