@@ -42,7 +42,9 @@ if BROWSER="$(command -v chromium || command -v chromium-browser)"; then
         --disable-gpu \
         --ozone-platform=wayland
 elif BROWSER="$(command -v epiphany)"; then
-    PROFILE="$XDG_RUNTIME_DIR/ios6-epiphany"
+    # epiphany derives its GApplication id from the profile dir name and
+    # demands this exact prefix in application (kiosk) mode
+    PROFILE="$XDG_RUNTIME_DIR/org.gnome.Epiphany.WebApp_ios6shell"
     mkdir -p "$PROFILE"
     exec cage -- "$BROWSER" --application-mode --profile="$PROFILE" "$URL"
 else
