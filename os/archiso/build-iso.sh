@@ -48,15 +48,14 @@ ln -sf /usr/lib/systemd/system/NetworkManager.service "$WANTS/NetworkManager.ser
 ln -sf /usr/lib/systemd/system/ModemManager.service   "$WANTS/ModemManager.service"
 
 echo ":: registering file permissions"
-python - "$PROFILE/profiledef.sh" <<'PYEOF'
-import sys
-path = sys.argv[1]
-src = open(path).read()
-add = ('  ["/usr/bin/ios6-shell"]="0:0:755"\n'
-       '  ["/usr/bin/ios6d"]="0:0:755"\n')
-i = src.rindex(")")  # closing paren of the file_permissions array
-open(path, "w").write(src[:i] + add + src[i:])
-PYEOF
+# profiledef.sh is sourced by mkarchiso, so appending to the assoc array works
+cat >> "$PROFILE/profiledef.sh" <<'EOF'
+
+file_permissions+=(
+  ["/usr/bin/ios6-shell"]="0:0:755"
+  ["/usr/bin/ios6d"]="0:0:755"
+)
+EOF
 
 echo ":: building ISO (this takes a while and needs ~6 GB in $WORK)"
 mkarchiso -v -w "$WORK/work" -o "$WORK/out" "$PROFILE"
