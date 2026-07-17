@@ -26,6 +26,11 @@ function h(tag, attrs, ...kids) {
 }
 const $id = id => document.getElementById(id);
 
+/* inline glyph element — a sized wrapper around a Glyphs.* SVG */
+function gl(name, size = 16) {
+  return h("span", { class: "gl", html: Glyphs[name](), style: { width: size + "px", height: size + "px" } });
+}
+
 /* ---------------- time helpers ---------------- */
 
 function fmtTime(d, withAmPm = true) {
@@ -279,7 +284,8 @@ const IOS = (() => {
   function refreshSignal() {
     const airplane = Prefs.get("airplane", false);
     const wifi = Prefs.get("wifi", true);
-    statusbar.querySelector(".sb-carrier").textContent = airplane ? "✈" : "arch";
+    const carrier = statusbar.querySelector(".sb-carrier");
+    if (airplane) carrier.innerHTML = Glyphs.plane(); else carrier.textContent = "arch";
     statusbar.querySelector(".sb-signal").classList.toggle("off", airplane);
     statusbar.querySelector(".sb-wifi").style.visibility = (wifi && !airplane) ? "visible" : "hidden";
   }

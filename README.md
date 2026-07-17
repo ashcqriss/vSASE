@@ -105,9 +105,14 @@ orientation), Voice Memos, Mail, Safari, Music (plays a generative chiptune)
 — and a Terminal where `neofetch`, `uname -a` and `pacman -Syu` do the right
 thing, against the real system when the bridge is up.
 
-| Boot | Lock | iMessage | Phone | Maps | About |
-|---|---|---|---|---|---|
-| ![boot](docs/screenshots/01-boot.png) | ![lock](docs/screenshots/02-lock.png) | ![chat](docs/screenshots/05-chat.png) | ![phone](docs/screenshots/08-phone.png) | ![maps](docs/screenshots/10-maps.png) | ![about](docs/screenshots/13-about.png) |
+| Boot | Lock | iMessage | Phone | In-call | Maps | Settings | About |
+|---|---|---|---|---|---|---|---|
+| ![boot](docs/screenshots/01-boot.png) | ![lock](docs/screenshots/02-lock.png) | ![chat](docs/screenshots/05-chat.png) | ![phone](docs/screenshots/08-phone.png) | ![call](docs/screenshots/51-call.png) | ![maps](docs/screenshots/10-maps.png) | ![settings](docs/screenshots/53-settings.png) | ![about](docs/screenshots/13-about.png) |
+
+All interface symbols — tab bars, toolbars, the in-call grid, Settings rows,
+weather conditions, transport controls — are hand-drawn monochrome SVG glyphs
+in the iOS 6 style (no emoji, no Apple asset files; Apple's original artwork
+is copyrighted, so everything is redrawn from scratch).
 
 ## Repo layout
 

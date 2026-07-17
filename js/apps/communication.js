@@ -27,9 +27,9 @@ const CallSession = (() => {
       });
     }
     const grid = h("div", "call-grid",
-      [["🔇", "mute"], ["🔢", "keypad"], ["🔊", "speaker"],
-       ["➕", "add call"], ["📹", "FaceTime"], ["👤", "contacts"]].map(([ico, lbl]) => {
-        const d = h("div", null, h("div", "cg-ico", ico), h("div", null, lbl));
+      [["mute", "mute"], ["keypad", "keypad"], ["speaker", "speaker"],
+       ["plus", "add call"], ["video", "FaceTime"], ["person", "contacts"]].map(([ico, lbl]) => {
+        const d = h("div", null, h("div", { class: "cg-ico", html: Glyphs[ico]() }), h("div", null, lbl));
         d.addEventListener("click", () => { Snd.click(); d.classList.toggle("active"); });
         return d;
       }));
@@ -76,7 +76,7 @@ function contactDetailView(nav, c, appRoot) {
         cell({ label: "home", value: c.email, onTap: () => IOS.open("mail") })),
       group(
         cell({ label: "Send Message", onTap: () => { IOS.open("messages"); setTimeout(() => MessagesApp.openThreadFor(c.id), 50); } }),
-        cell({ label: "FaceTime", right: h("span", { style: { fontSize: "15px" } }, "📹"), onTap: () =>
+        cell({ label: "FaceTime", right: gl("video", 18), onTap: () =>
           showAlert({ title: "FaceTime Unavailable", text: contactName(c) + " is not available for FaceTime." }) }),
         cell({ label: "Share Contact", onTap: () => showSheet([
           { label: "Email Contact", onTap: () => IOS.open("mail") },
@@ -112,7 +112,7 @@ const MessagesApp = (() => {
 
   function threadCellPreview(t) {
     const last = t.msgs[t.msgs.length - 1];
-    return last ? (last.kind === "photo" ? "🖼 Photo" : last.text) : "";
+    return last ? (last.kind === "photo" ? "Photo" : last.text) : "";
   }
 
   function listView() {
@@ -132,7 +132,7 @@ const MessagesApp = (() => {
     return navView(
       navbar("Messages", {
         left: navBtn("Edit", () => {}),
-        right: navBtn("✎", () => composeSheet())
+        right: navBtn(gl("compose", 15), () => composeSheet())
       }),
       list);
   }
@@ -225,7 +225,7 @@ const MessagesApp = (() => {
 
     sendBtn.addEventListener("click", doSend);
 
-    const camBtn = h("div", "msg-cam", "📷");
+    const camBtn = h("div", { class: "msg-cam", html: Glyphs.camera() });
     camBtn.addEventListener("click", () => {
       Snd.click();
       showSheet([
@@ -305,11 +305,11 @@ const PhoneApp = (() => {
   function render(root) {
     const body = h("div", { class: "content", style: { display: "flex", flexDirection: "column", padding: "0" } });
     const tabs = [
-      ["★", "Favorites"], ["🕐", "Recents"], ["👤", "Contacts"], ["⠿", "Keypad"], ["✉", "Voicemail"]
+      ["star", "Favorites"], ["clock", "Recents"], ["person", "Contacts"], ["keypad", "Keypad"], ["voicemail", "Voicemail"]
     ];
     let active = 3;
     const tabbar = h("div", "tabbar", tabs.map(([ico, lbl], i) => {
-      const t = h("div", "tab" + (i === active ? " on" : ""), h("div", "t-ico", ico), h("div", null, lbl));
+      const t = h("div", "tab" + (i === active ? " on" : ""), h("div", { class: "t-ico", html: Glyphs[ico]() }), h("div", null, lbl));
       t.addEventListener("click", () => { Snd.click(); active = i; [...tabbar.children].forEach((x, j) => x.classList.toggle("on", j === i)); show(i); });
       return t;
     }));
@@ -336,7 +336,7 @@ const PhoneApp = (() => {
         k.addEventListener("click", () => { Snd.dtmf(n); number += n; upd(); });
         return k;
       }));
-      const call = h("div", "kp-call", "📞", h("span", null, "Call"));
+      const call = h("div", "kp-call", gl("phone", 20), h("span", null, "Call"));
       call.addEventListener("click", () => {
         if (!number) return;
         const c = contactByNumber(number);
@@ -344,7 +344,7 @@ const PhoneApp = (() => {
       });
       const del = h("div", "kp-side", "⌫");
       del.addEventListener("click", () => { Snd.click(); number = number.slice(0, -1); upd(); });
-      const addC = h("div", "kp-side", "👤+");
+      const addC = h("div", "kp-side", gl("person", 20));
       body.append(
         h("div", "ph-display", numEl, hintEl),
         pad,
@@ -409,7 +409,7 @@ const PhoneApp = (() => {
       VOICEMAILS.forEach(v => {
         list.append(cell({
           label: v.from, sub: v.time,
-          right: h("span", "vm-cell-play", "▶"),
+          right: h("span", { class: "vm-cell-play", html: Glyphs.play() }),
           value: v.dur,
           onTap: () => showAlert({ title: "Voicemail", text: "“Hi, it's " + v.from + " — call me back when you can!”" })
         }));
@@ -480,9 +480,9 @@ IOS.register({
         row.addEventListener("click", () => { Snd.click(); m.unread = false; nav.push(messageView(m)); });
         list.append(row);
       });
-      const compose = h("span", "tb-ico", "✎");
+      const compose = h("span", { class: "tb-ico", html: Glyphs.compose() });
       compose.addEventListener("click", () => nav.push(composeView()));
-      const refresh = h("span", "tb-ico", "↻");
+      const refresh = h("span", { class: "tb-ico", html: Glyphs.refresh() });
       refresh.addEventListener("click", () => { Snd.click(); showAlert({ title: "Mail", text: "Checking for Mail…\nEverything is up to date (btw)." }); });
       return navView(
         navbar("Inbox" + (MAILBOX.some(m => m.unread) ? " (" + MAILBOX.filter(m => m.unread).length + ")" : ""), {
@@ -490,7 +490,10 @@ IOS.register({
           right: navBtn("Edit", () => {})
         }),
         list,
-        h("div", "toolbar", refresh, h("span", "tb-ico disabled", "📁"), h("span", "tb-ico disabled", "🗑"), h("span", "tb-ico", "↩"), compose));
+        h("div", "toolbar", refresh,
+          h("span", { class: "tb-ico disabled", html: Glyphs.folder() }),
+          h("span", { class: "tb-ico disabled", html: Glyphs.trash() }),
+          h("span", { class: "tb-ico", html: Glyphs.reply() }), compose));
     }
 
     function messageView(m) {

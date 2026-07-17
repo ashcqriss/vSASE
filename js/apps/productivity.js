@@ -128,7 +128,7 @@ IOS.register({
       return navView(
         navbar(notes[i].title || "New Note", {
           left: backBtn("Notes", () => { commit(); nav.popToRoot(); nav.el.innerHTML = ""; nav.stack = []; nav.push(listView(), false); }),
-          right: navBtn("🗑", () => { notes.splice(i, 1); save(); nav.el.innerHTML = ""; nav.stack = []; nav.push(listView(), false); })
+          right: navBtn(gl("trash", 15), () => { notes.splice(i, 1); save(); nav.el.innerHTML = ""; nav.stack = []; nav.push(listView(), false); })
         }),
         paper);
     }
@@ -195,9 +195,9 @@ IOS.register({
     def._ivals = def._ivals || [];
     const body = h("div", { class: "content", style: { background: "#26262a", display: "flex", flexDirection: "column" } });
     let active = 0;
-    const tabs = [["🌐", "World Clock"], ["⏰", "Alarm"], ["⏱", "Stopwatch"], ["⏳", "Timer"]];
+    const tabs = [["globe", "World Clock"], ["alarm", "Alarm"], ["stopwatch", "Stopwatch"], ["timer", "Timer"]];
     const tabbar = h("div", "tabbar", tabs.map(([ico, lbl], i) => {
-      const t = h("div", "tab" + (i === active ? " on" : ""), h("div", "t-ico", ico), h("div", null, lbl));
+      const t = h("div", "tab" + (i === active ? " on" : ""), h("div", { class: "t-ico", html: Glyphs[ico]() }), h("div", null, lbl));
       t.addEventListener("click", () => { Snd.click(); active = i; [...tabbar.children].forEach((x, j) => x.classList.toggle("on", j === i)); show(i); });
       return t;
     }));
@@ -467,7 +467,7 @@ IOS.register({
         group(nets.map(([name, sel]) => cell({
           label: name,
           value: sel ? "✓" : "",
-          right: h("span", { style: { fontSize: "13px" } }, "🔒 📶"),
+          right: h("span", { style: { display: "inline-flex", gap: "5px", color: "#7b8494" } }, gl("lock", 13), gl("wifi", 14)),
           onTap: () => showAlert({ title: name, text: "Connected. (All networks lead to localhost.)" })
         }))));
     });
@@ -510,22 +510,22 @@ IOS.register({
       navbar("Settings"),
       h("div", "content grouped",
         group(
-          cell({ label: "Airplane Mode", ico: "✈", icoBg: "#f5871f",
+          cell({ label: "Airplane Mode", ico: Glyphs.plane(), icoBg: "linear-gradient(#fbb96b,#e8850f)",
                  right: toggle(Prefs.get("airplane", false), v => { Prefs.set("airplane", v); IOS.refreshSignal(); }), cls: "static" }),
-          cell({ label: "Wi-Fi", ico: "📶", icoBg: "#3a7ad8", value: Prefs.get("wifi", true) ? "archnet-5G" : "Off", chev: true, onTap: wifiView }),
-          cell({ label: "Bluetooth", ico: "ᛒ", icoBg: "#2255c8", value: "Off", chev: true, onTap: () => {} }),
-          cell({ label: "Do Not Disturb", ico: "🌙", icoBg: "#5a3aa8", right: toggle(false, () => {}), cls: "static" })),
+          cell({ label: "Wi-Fi", ico: Glyphs.wifi(), icoBg: "linear-gradient(#6f9be8,#2255c8)", value: Prefs.get("wifi", true) ? "archnet-5G" : "Off", chev: true, onTap: wifiView }),
+          cell({ label: "Bluetooth", ico: Glyphs.bluetooth(), icoBg: "linear-gradient(#6f9be8,#1a44b0)", value: "Off", chev: true, onTap: () => {} }),
+          cell({ label: "Do Not Disturb", ico: Glyphs.moon(), icoBg: "linear-gradient(#8a6ad0,#4a2a98)", right: toggle(false, () => {}), cls: "static" })),
         group(
-          cell({ label: "Notifications", ico: "🔔", icoBg: "#d0342a", chev: true, onTap: () => {} }),
-          cell({ label: "General", ico: "⚙", icoBg: "#8b93a1", chev: true, onTap: generalView }),
-          cell({ label: "Sounds", ico: "🔊", icoBg: "#d63a7e", chev: true, onTap: soundsView }),
-          cell({ label: "Brightness & Wallpaper", ico: "☀", icoBg: "#3a7ad8", chev: true, onTap: wallpaperView }),
-          cell({ label: "Privacy", ico: "✋", icoBg: "#3a5ad8", chev: true, onTap: () => showAlert({ title: "Privacy", text: "This phone runs entirely in your browser tab. Nothing leaves it. Even the NSA is bored." }) })),
+          cell({ label: "Notifications", ico: Glyphs.bell(), icoBg: "linear-gradient(#f07a6a,#c02a1a)", chev: true, onTap: () => {} }),
+          cell({ label: "General", ico: Glyphs.gear(), icoBg: "linear-gradient(#b0b8c2,#767f8b)", chev: true, onTap: generalView }),
+          cell({ label: "Sounds", ico: Glyphs.speaker(), icoBg: "linear-gradient(#ea6aa8,#c02a68)", chev: true, onTap: soundsView }),
+          cell({ label: "Brightness & Wallpaper", ico: Glyphs.sun(), icoBg: "linear-gradient(#6f9be8,#2255c8)", chev: true, onTap: wallpaperView }),
+          cell({ label: "Privacy", ico: Glyphs.hand(), icoBg: "linear-gradient(#6a7ae8,#2a3ac0)", chev: true, onTap: () => showAlert({ title: "Privacy", text: "This phone runs entirely in your browser tab. Nothing leaves it. Even the NSA is bored." }) })),
         group(
-          cell({ label: "iCloud", ico: "☁", icoBg: "#4aa8e0", value: "off (self-hosted)", chev: true, onTap: () => {} }),
-          cell({ label: "Messages", ico: "💬", icoBg: "#4fc72d", chev: true, onTap: messagesView }),
-          cell({ label: "Phone", ico: "📞", icoBg: "#4fbb2f", value: "(555) 019-4141", chev: true, onTap: () => {} }),
-          cell({ label: "Safari", ico: "🧭", icoBg: "#3f8fdd", chev: true, onTap: () => {} })),
+          cell({ label: "iCloud", ico: Glyphs.cloud(), icoBg: "linear-gradient(#7ac0ec,#2a80c0)", value: "off (self-hosted)", chev: true, onTap: () => {} }),
+          cell({ label: "Messages", ico: Glyphs.bubble(), icoBg: "linear-gradient(#8ee968,#2f9e13)", chev: true, onTap: messagesView }),
+          cell({ label: "Phone", ico: Glyphs.phone(), icoBg: "linear-gradient(#9be36f,#2f8f13)", value: "(555) 019-4141", chev: true, onTap: () => {} }),
+          cell({ label: "Safari", ico: Glyphs.compassMini(), icoBg: "linear-gradient(#7cc4f4,#1244a8)", chev: true, onTap: () => {} })),
         h("div", "group-foot", "iOS 6.1.3 · Linux " + NativeBridge.get("kernel", "6.9.7-arch1-1") +
           (NativeBridge.active ? " · native" : " · simulated") + " · btw")));
     nav.push(main, false);
@@ -545,17 +545,17 @@ IOS.register({
   render(root) {
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const today = new Date().getDay();
-    const fx = [["☀", 75, 58], ["⛅", 72, 57], ["☀", 78, 60], ["🌧", 66, 55], ["⛈", 64, 54], ["⛅", 70, 56]];
+    const fx = [["wsun", 75, 58], ["wpartly", 72, 57], ["wsun", 78, 60], ["wrain", 66, 55], ["wstorm", 64, 54], ["wpartly", 70, 56]];
     root.classList.add("weather-root");
     root.append(
       h("div", "wx-city", "Cupertino"),
       h("div", "wx-cond", "Sunny"),
-      h("div", "wx-now", h("span", "wx-icon-big", "☀"), h("span", "wx-big", "73°")),
+      h("div", "wx-now", h("span", { class: "wx-icon-big", html: Glyphs.wsun() }), h("span", "wx-big", "73°")),
       h("div", "wx-hl", "H: 75°  L: 58°"),
       h("div", "wx-week", fx.map(([ico, hi, lo], i) =>
         h("div", "wx-row",
           h("span", "d", i === 0 ? "Today" : days[(today + i) % 7]),
-          h("span", null, ico),
+          h("span", { class: "w-i", html: Glyphs[ico]() }),
           h("span", null, hi + "°"),
           h("span", "lo", lo + "°")))),
       h("div", "wx-foot", "Updated " + fmtTime(new Date()) + " — forecast lovingly hard-coded"));
@@ -623,7 +623,7 @@ IOS.register({
     }, 4000);
 
     root.append(
-      navbar("Stocks", { dark: true, right: navBtn("ⓘ", () => showAlert({ title: "Stocks", text: "Quotes are randomly generated and 20 minutes into the future." })) }),
+      navbar("Stocks", { dark: true, right: navBtn(gl("info", 15), () => showAlert({ title: "Stocks", text: "Quotes are randomly generated and 20 minutes into the future." })) }),
       rows,
       h("div", "stk-chart-wrap", canvas),
       h("div", "stk-foot", "Market data may be fictional. LNX up forever."));
@@ -687,19 +687,19 @@ IOS.register({
     map.append(dot, h("div", "maps-curl"));
 
     let banner = null;
-    const dirBtn = h("span", "tb-ico", "⤴");
+    const dirBtn = h("span", { class: "tb-ico", html: Glyphs.directions() });
     dirBtn.addEventListener("click", () => {
       Snd.click();
       if (banner) { banner.remove(); banner = null; return; }
       banner = h("div", "maps-banner",
-        h("div", "mb-arrow", "⬆"),
+        h("div", { class: "mb-arrow", html: Glyphs.arrowUp() }),
         h("div", null,
           h("div", "mb-dist", "0.3 miles"),
           h("div", "mb-instr", "TURN RIGHT ONTO 5TH AVE")));
       map.append(banner);
     });
 
-    const locBtn = h("button", "maps-loc-btn", "➤");
+    const locBtn = h("button", { class: "maps-loc-btn", html: Glyphs.locate() });
     locBtn.addEventListener("click", () => { Snd.click(); dot.style.left = "175px"; dot.style.top = "205px"; });
 
     map.addEventListener("click", e => {
@@ -727,9 +727,11 @@ IOS.register({
 
     root.append(
       h("div", { class: "searchbar", style: { display: "flex", gap: "6px" } },
-        h("span", { style: { color: "#fff", fontSize: "18px", alignSelf: "center" } }, "↱"), search),
+        h("span", { style: { color: "#fff", alignSelf: "center", width: "20px", height: "20px" }, class: "gl", html: Glyphs.directions() }), search),
       map,
       h("div", "toolbar",
-        h("span", "tb-ico", "➤"), dirBtn, h("span", "tb-ico", "🔖"), h("span", "tb-ico", "📄")));
+        h("span", { class: "tb-ico", html: Glyphs.locate() }), dirBtn,
+        h("span", { class: "tb-ico", html: Glyphs.book() }),
+        h("span", { class: "tb-ico", html: Glyphs.pages() })));
   }
 });

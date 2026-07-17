@@ -41,13 +41,15 @@ IOS.register({
     root.append(
       navbar("Camera Roll", {
         left: backBtn("Albums", () => {}),
-        right: navBtn("↑", () => showSheet([
+        right: navBtn(gl("share", 15), () => showSheet([
           { label: "Email Photo", onTap: () => IOS.open("mail") },
           { label: "Message", onTap: () => IOS.open("messages") },
           { label: "Use as Wallpaper", onTap: () => showAlert({ title: "Wallpaper", text: "This wallpaper is too beautiful. Request denied by the Skeuomorphic Texture Daemon." }) },
           { label: "Cancel", style: "cancel" }])) }),
       h("div", { class: "content", style: { background: "#000" } }, grid),
-      h("div", "toolbar", h("span", "tb-ico", "▶"), h("span", "tb-ico disabled", "🗑")));
+      h("div", "toolbar",
+        h("span", { class: "tb-ico", html: Glyphs.play() }),
+        h("span", { class: "tb-ico disabled", html: Glyphs.trash() })));
   }
 });
 
@@ -101,7 +103,7 @@ IOS.register({
     thumb.append(h("img", { src: last }));
     thumb.addEventListener("click", () => IOS.open("photos"));
 
-    const shutter = h("div", "cam-shutter", "📷");
+    const shutter = h("div", { class: "cam-shutter", html: Glyphs.camera() });
     shutter.addEventListener("click", () => {
       Snd.key();
       iris.classList.add("snap");
@@ -116,7 +118,7 @@ IOS.register({
 
     root.append(
       h("div", "cam-finder", scene, h("div", "cam-reticle"), iris),
-      h("div", "cam-bar", thumb, shutter, h("div", "cam-flip", "🔄")));
+      h("div", "cam-bar", thumb, shutter, h("div", { class: "cam-flip", html: Glyphs.flip() })));
   }
 });
 
@@ -147,10 +149,10 @@ IOS.register({
 
     const bar = h("i");
     const elapsed = h("span", null, "0:00");
-    const playBtn = h("span", null, "▶");
+    const playBtn = h("span", { html: Glyphs.play() });
     playBtn.addEventListener("click", () => {
-      if (MusicPlayer.playing) { MusicPlayer.stop(); playBtn.textContent = "▶"; }
-      else { MusicPlayer.play(p => { bar.style.width = (p.frac * 100) + "%"; elapsed.textContent = p.time; }, () => { playBtn.textContent = "▶"; }); playBtn.textContent = "❚❚"; }
+      if (MusicPlayer.playing) { MusicPlayer.stop(); playBtn.innerHTML = Glyphs.play(); }
+      else { MusicPlayer.play(p => { bar.style.width = (p.frac * 100) + "%"; elapsed.textContent = p.time; }, () => { playBtn.innerHTML = Glyphs.play(); }); playBtn.innerHTML = Glyphs.pause(); }
       Snd.click();
     });
 
@@ -160,7 +162,9 @@ IOS.register({
         art,
         h("div", "music-track", h("b", null, "Daemons in the Initramfs"), h("span", null, "Kernel Panic — Rolling Release (2012)")),
         h("div", "music-progress", elapsed, h("div", "bar", bar), h("span", null, "0:16")),
-        h("div", "music-ctrls", h("span", { onclick: () => Snd.click() }, "⏮"), playBtn, h("span", { onclick: () => Snd.click() }, "⏭")),
+        h("div", "music-ctrls",
+          h("span", { onclick: () => Snd.click(), html: Glyphs.prev() }), playBtn,
+          h("span", { onclick: () => Snd.click(), html: Glyphs.next() })),
         h("div", "music-vol", slider(70, () => {}))));
   }
 });
@@ -244,8 +248,8 @@ IOS.register({
           h("p", null, h("a", { onclick: () => go("apple.com") }, "← back to apple.com")))),
       "start": () => h("div", "web saf-start",
         h("p", { style: { fontWeight: "bold", marginBottom: "14px" } }, "Bookmarks"),
-        h("div", { class: "bookmark-tile", onclick: () => go("apple.com") }, "🍎 Apple"),
-        h("div", { class: "bookmark-tile", onclick: () => go("archlinux.org") }, "🐧 Arch Linux"),
+        h("div", { class: "bookmark-tile", onclick: () => go("apple.com") }, gl("book", 14), " Apple"),
+        h("div", { class: "bookmark-tile", onclick: () => go("archlinux.org") }, gl("book", 14), " Arch Linux"),
         h("p", { style: { marginTop: "18px", fontSize: "12px" } }, "This Safari browses a very small, very curated internet."))
     };
 
@@ -274,14 +278,14 @@ IOS.register({
       h("div", "saf-bars", addr),
       page,
       h("div", "toolbar",
-        h("span", { class: "tb-ico", onclick: () => { Snd.click(); go("apple.com"); } }, "◀"),
-        h("span", { class: "tb-ico", onclick: () => { Snd.click(); go("archlinux.org"); } }, "▶"),
-        h("span", { class: "tb-ico", onclick: () => showSheet([
+        h("span", { class: "tb-ico", html: Glyphs.chevL(), onclick: () => { Snd.click(); go("apple.com"); } }),
+        h("span", { class: "tb-ico", html: Glyphs.chevR(), onclick: () => { Snd.click(); go("archlinux.org"); } }),
+        h("span", { class: "tb-ico", html: Glyphs.share(), onclick: () => showSheet([
           { label: "Add to Home Screen", onTap: () => showAlert({ title: "Nope", text: "The home screen is full of memories already." }) },
           { label: "Mail Link to this Page", onTap: () => IOS.open("mail") },
-          { label: "Cancel", style: "cancel" }]) }, "↑"),
-        h("span", { class: "tb-ico", onclick: () => { Snd.click(); go(""); } }, "🔖"),
-        h("span", { class: "tb-ico", onclick: () => showAlert({ title: "Tabs", text: "You have 1 tab open. A simpler time." }) }, "▢")));
+          { label: "Cancel", style: "cancel" }]) }),
+        h("span", { class: "tb-ico", html: Glyphs.book(), onclick: () => { Snd.click(); go(""); } }),
+        h("span", { class: "tb-ico", html: Glyphs.pages(), onclick: () => showAlert({ title: "Tabs", text: "You have 1 tab open. A simpler time." }) })));
     go("");
   }
 });
@@ -308,7 +312,7 @@ IOS.register({
         Snd.click();
         showAlert({ title: name, text: "▶ Now playing… in your imagination. (Video decoding not included, kernel module missing: imagination.ko loaded instead.)" });
       } },
-        h("div", { class: "store-app-ico", style: { background: color } }, "▶"),
+        h("div", { class: "store-app-ico", style: { background: color }, html: Glyphs.play() }),
         h("div", "store-info", h("b", null, name), h("span", null, dur + " · HD"))));
     });
     root.append(navbar("Videos", { right: navBtn("Edit", () => {}) }), list);
@@ -325,9 +329,9 @@ function storeApp(id, name, icon, title, rows, footer) {
     render(root) {
       const list = h("div", "content");
       list.append(h("div", "store-hero", h("h2", null, title), h("p", null, footer)));
-      rows.forEach(([emoji, bg, nm, sub, price]) => {
+      rows.forEach(([glyph, bg, nm, sub, price]) => {
         list.append(h("div", { class: "store-row", onclick: () => Snd.click() },
-          h("div", { class: "store-app-ico", style: { background: bg } }, emoji),
+          h("div", { class: "store-app-ico", style: { background: bg }, html: Glyphs[glyph]() }),
           h("div", "store-info", h("b", null, nm), h("span", null, sub),
             h("div", "stars", h("b", null, "★★★★"), "★ (12,061)")),
           h("div", { class: "store-price", onclick: e => {
@@ -335,27 +339,27 @@ function storeApp(id, name, icon, title, rows, footer) {
             showAlert({ title: nm, text: "Purchased! Charged to: nobody. Downloaded to: nowhere. Rated 5 stars by: you, just now." });
           } }, price)));
       });
-      const tabs = [["★", "Featured"], ["📈", "Charts"], ["🔍", "Search"], ["⤓", "Updates"]];
+      const tabs = [["star", "Featured"], ["chart", "Charts"], ["search", "Search"], ["download", "Updates"]];
       const tabbar = h("div", "tabbar", tabs.map(([ico, lbl], i) =>
-        h("div", "tab" + (i === 0 ? " on" : ""), h("div", "t-ico", ico), h("div", null, lbl))));
+        h("div", "tab" + (i === 0 ? " on" : ""), h("div", { class: "t-ico", html: Glyphs[ico]() }), h("div", null, lbl))));
       root.append(navbar(name), list, tabbar);
     }
   });
 }
 
 storeApp("itunes", "iTunes", Icons.itunes, "New & Noteworthy", [
-  ["🎵", "linear-gradient(#e05a8a,#a02555)", "Rolling Release", "Kernel Panic — Album", "$9.99"],
-  ["🎵", "linear-gradient(#3a7ad8,#1a4a98)", "Daemons (Single)", "Kernel Panic", "$1.29"],
-  ["🎬", "linear-gradient(#3d4450,#181b21)", "The Linen Documentary", "Textures & Feelings", "$14.99"],
-  ["🎵", "linear-gradient(#f5871f,#c05a00)", "Marimba Forever", "Various Ringtones", "$0.99"]
+  ["note", "linear-gradient(#e05a8a,#a02555)", "Rolling Release", "Kernel Panic — Album", "$9.99"],
+  ["note", "linear-gradient(#3a7ad8,#1a4a98)", "Daemons (Single)", "Kernel Panic", "$1.29"],
+  ["film", "linear-gradient(#3d4450,#181b21)", "The Linen Documentary", "Textures & Feelings", "$14.99"],
+  ["bell", "linear-gradient(#f5871f,#c05a00)", "Marimba Forever", "Various Ringtones", "$0.99"]
 ], "Music, movies & marimba.");
 
 storeApp("appstore", "App Store", Icons.appstore, "Featured Apps", [
-  ["🐧", "linear-gradient(#1793d1,#0a4a70)", "pacman GUI Pro", "Finally, a wrapper for your wrapper", "FREE"],
-  ["📖", "linear-gradient(#7a5c3a,#4a3520)", "Wiki Reader", "RTFM, beautifully", "FREE"],
-  ["🐦", "linear-gradient(#4aa8e0,#1a6aa8)", "Chirper", "140 characters ought to be enough", "FREE"],
-  ["🕹", "linear-gradient(#4a8a4a,#255525)", "Angry Penguins", "Fling penguins at proprietary software", "$0.99"],
-  ["🧮", "linear-gradient(#43464d,#191b1f)", "RPN Calculator HD", "For people who disagree with = signs", "$2.99"]
+  ["download", "linear-gradient(#1793d1,#0a4a70)", "pacman GUI Pro", "Finally, a wrapper for your wrapper", "FREE"],
+  ["book", "linear-gradient(#7a5c3a,#4a3520)", "Wiki Reader", "RTFM, beautifully", "FREE"],
+  ["bubble", "linear-gradient(#4aa8e0,#1a6aa8)", "Chirper", "140 characters ought to be enough", "FREE"],
+  ["star", "linear-gradient(#4a8a4a,#255525)", "Angry Penguins", "Fling penguins at proprietary software", "$0.99"],
+  ["keypad", "linear-gradient(#43464d,#191b1f)", "RPN Calculator HD", "For people who disagree with = signs", "$2.99"]
 ], "All apps reviewed by a shadowy cabal.");
 
 /* =================================================================
@@ -382,9 +386,9 @@ IOS.register({
         h("div", "gc-card",
           h("h2", { style: { fontSize: "16px" } }, "Recent Games"),
           h("div", { style: { fontSize: "13px", color: "#6a5f45", marginTop: "8px", lineHeight: "1.9" } },
-            "♟ Chess — Zach is winning (1,240)", h("br"),
-            "🐧 Angry Penguins — 3 stars", h("br"),
-            "⌨ vimtutor speedrun — WR holder"))));
+            "Chess — Zach is winning (1,240)", h("br"),
+            "Angry Penguins — 3 stars", h("br"),
+            "vimtutor speedrun — record holder"))));
   }
 });
 

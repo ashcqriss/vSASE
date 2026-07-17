@@ -30,7 +30,8 @@ const NativeBridge = (() => {
     // battery
     if (info.battery && typeof info.battery.pct === "number") {
       const pct = Math.max(0, Math.min(100, info.battery.pct));
-      sb.querySelector(".sb-batt-pct").textContent = pct + "%" + (info.battery.charging ? "⚡" : "");
+      sb.querySelector(".sb-batt-pct").innerHTML =
+        pct + "%" + (info.battery.charging ? Glyphs.bolt() : "");
       sb.querySelector(".sb-batt i").style.right = (100 - pct) * 0.2 + "px";
     }
     // carrier / wifi

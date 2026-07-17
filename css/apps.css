@@ -459,7 +459,8 @@
   box-shadow: 0 3px 8px rgba(0,0,0,.4);
   text-shadow: 0 -1px 0 rgba(0,0,0,.35);
 }
-.maps-banner .mb-arrow { font-size: 26px; font-weight: bold; }
+.maps-banner .mb-arrow { font-size: 26px; font-weight: bold; display: flex; }
+.maps-banner .mb-arrow svg { width: 27px; height: 27px; }
 .maps-banner .mb-dist { font-size: 22px; font-weight: bold; line-height: 1.05; }
 .maps-banner .mb-instr { font-size: 11px; font-weight: bold; letter-spacing: .03em; }
 .maps-curl {
@@ -705,6 +706,24 @@
 }
 .wp-thumb.sel { outline: 3px solid #2f6fd0; }
 .wp-row { display: flex; gap: 12px; padding: 12px; }
+
+/* ================= SVG glyph sizing per context ================= */
+
+.call-grid .cg-ico svg { width: 27px; height: 27px; }
+.msg-cam svg { width: 17px; height: 17px; color: #5a6470; }
+.kp-call svg { width: 20px; height: 20px; }
+.kp-side .gl svg { width: 20px; height: 20px; }
+.vm-cell-play svg { width: 15px; height: 15px; }
+.wx-icon-big svg { width: 48px; height: 48px; }
+.wx-row .w-i { display: inline-flex; width: 24px; justify-content: center; }
+.wx-row .w-i svg { width: 22px; height: 22px; }
+.cam-shutter svg { width: 23px; height: 23px; }
+.cam-flip svg { width: 22px; height: 22px; }
+.music-ctrls span { display: inline-flex; }
+.music-ctrls span svg { width: 30px; height: 30px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+.store-app-ico svg { width: 27px; height: 27px; filter: drop-shadow(0 -1px 0 rgba(0,0,0,.3)); }
+.maps-loc-btn { display: flex; align-items: center; justify-content: center; }
+.maps-loc-btn svg { width: 18px; height: 18px; }
 
 /* ================= FaceTime-ish / generic dark hero ================= */
 
