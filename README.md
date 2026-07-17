@@ -55,6 +55,32 @@ then tty1 autologin execs `ios6-shell` — cage + Chromium in kiosk mode — and
 the machine *is* an iPhone from 2012. NetworkManager, ModemManager and
 `ios6d` are enabled as services.
 
+### 1b · Run it in UTM (macOS)
+
+CI builds two ready-to-run artifacts on every push touching `os/**`
+(Actions → *Build & boot-test the iOS 6 Arch ISO* → latest run → Artifacts):
+
+**Apple Silicon (M1–M4) — native speed.** Download `ios6-arch-utm-aarch64`
+(unzip → `ios6-arch-aarch64.qcow2`, genuine Arch Linux ARM with UEFI/
+systemd-boot). In UTM:
+
+1. *Create a New VM → Virtualize → Linux* — leave the boot ISO empty and
+   finish the wizard with defaults.
+2. Open the VM's settings → **Drives**: delete the empty disk the wizard
+   created, then *New… → Import* and pick the `.qcow2` (interface: VirtIO).
+3. System: 4 GB RAM, 4 cores. Display: `virtio-gpu-pci` (the default).
+4. Start. UEFI finds systemd-boot, the Arch ARM kernel boots, tty1
+   autologins and the machine becomes an iPhone. Login fallback:
+   `root` / `ios6` on any other console.
+
+**Intel Mac (or emulated x86_64 on Apple Silicon — slow).** Download
+`ios6-arch-iso`, then *Create a New VM → Virtualize* (Intel) or *Emulate*
+(Apple Silicon) *→ Linux → Boot ISO image* = the ISO. 3 GB RAM. The live
+ISO boots straight into the shell.
+
+The shell renders in software (`WLR_RENDERER=pixman`, no GPU needed), so
+UTM's default display device just works.
+
 ### 2 · On an existing Arch install
 
 ```sh

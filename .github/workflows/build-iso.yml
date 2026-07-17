@@ -106,3 +106,52 @@ jobs:
           name: boot-screenshots
           path: shots/*.png
           retention-days: 14
+
+  build-utm-aarch64:
+    name: UTM image (Arch Linux ARM, Apple Silicon native)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install image tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gdisk dosfstools e2fsprogs rsync qemu-utils \
+            qemu-system-arm qemu-efi-aarch64
+
+      - name: Build qcow2
+        run: |
+          sudo bash os/utm/build-utm-aarch64.sh /build
+          mkdir -p out && sudo mv /build/ios6-arch-aarch64.qcow2 out/
+          sudo chown "$USER" out/*.qcow2
+          ls -lh out/
+
+      - name: Boot smoke test (UEFI serial console)
+        run: |
+          cp /usr/share/qemu-efi-aarch64/QEMU_EFI.fd efi.fd
+          truncate -s 64M efivars.fd
+          qemu-system-aarch64 \
+            -M virt -cpu max -m 2048 -smp 2 -accel tcg,thread=multi \
+            -drive if=pflash,format=raw,file=efi.fd,readonly=on \
+            -drive if=pflash,format=raw,file=efivars.fd \
+            -drive file=out/ios6-arch-aarch64.qcow2,if=virtio \
+            -display none -serial file:serial.log \
+            -no-reboot &
+          QPID=$!
+          ok=0
+          for i in $(seq 1 60); do
+            sleep 10
+            if grep -aq "arch-iphone login:" serial.log; then ok=1; break; fi
+            kill -0 $QPID 2>/dev/null || break
+          done
+          kill $QPID 2>/dev/null || true
+          echo "=== serial tail ==="; tail -40 serial.log || true
+          [ "$ok" = 1 ] || { echo "::error::image did not reach login/autostart on serial"; exit 1; }
+          echo "boot reached arch-iphone autologin — shell autostarts on tty1"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios6-arch-utm-aarch64
+          path: out/*.qcow2
+          retention-days: 14
