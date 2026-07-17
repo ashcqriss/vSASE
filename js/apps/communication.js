@@ -18,6 +18,14 @@ const CallSession = (() => {
 
   function start(parent, { name, number }) {
     const stateEl = h("div", "call-state", "calling mobile…");
+    // on real hardware with a modem, place the call through ModemManager
+    if (number && NativeBridge.active && NativeBridge.get("modem.present", false)) {
+      stateEl.textContent = "dialing via modem…";
+      NativeBridge.call(number).then(r => {
+        if (r && r.ok) stateEl.textContent = "connected via ModemManager";
+        else stateEl.textContent = "modem: " + ((r && r.error) || "call failed") + " — simulating";
+      });
+    }
     const grid = h("div", "call-grid",
       [["🔇", "mute"], ["🔢", "keypad"], ["🔊", "speaker"],
        ["➕", "add call"], ["📹", "FaceTime"], ["👤", "contacts"]].map(([ico, lbl]) => {
@@ -192,6 +200,9 @@ const MessagesApp = (() => {
       if (!text) return;
       field.value = "";
       sendBtn.classList.remove("ready");
+      // real SMS through ModemManager when running on hardware with a modem
+      if (!isIM && NativeBridge.active && NativeBridge.get("modem.present", false))
+        NativeBridge.sms(c.phone, text);
       appendOut({ dir: "out", text, delivered: true });
     }
 

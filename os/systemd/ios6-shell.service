@@ -1,0 +1,19 @@
+[Unit]
+Description=iOS 6 SpringBoard shell (cage + chromium kiosk)
+After=systemd-user-sessions.service ios6d.service
+Wants=ios6d.service
+Conflicts=getty@tty1.service
+
+[Service]
+ExecStart=/usr/bin/ios6-shell
+User=root
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardError=journal
+UtmpIdentifier=tty1
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

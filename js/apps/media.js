@@ -561,9 +561,9 @@ IOS.register({
     const NEOFETCH = [
       ["t-arch", "       /\\         root@arch-iphone"],
       ["t-arch", "      /  \\        ----------------"],
-      ["t-arch", "     /\\   \\       OS: Arch Linux ARM (iOS 6)"],
-      ["t-arch", "    /      \\      Host: iPhone 5 (ARCH1,6)"],
-      ["t-arch", "   /   ,,   \\     Kernel: 6.9.7-arch1-1"],
+      ["t-arch", "     /\\   \\       OS: Arch Linux (iOS 6 shell)"],
+      ["t-arch", "    /      \\      Host: HOSTNAME"],
+      ["t-arch", "   /   ,,   \\     Kernel: KERNEL"],
       ["t-arch", "  /   |  |  -\\    Shell: bash 5.2"],
       ["t-arch", " /_-''    ''-_\\   DE: SpringBoard 6.1.3"],
       ["t-arch", "                  WM: linen-wm"],
@@ -587,8 +587,17 @@ IOS.register({
 
     const CMDS = {
       help: () => line("commands: help, neofetch, uname -a, pacman -Syu, ls, whoami, uptime, btw, exit, clear"),
-      neofetch: () => lines(NEOFETCH),
-      "uname -a": () => line("Linux arch-iphone 6.9.7-arch1-1 #1 SMP PREEMPT_DYNAMIC aarch64 GNU/Linux"),
+      neofetch: () => {
+        const host = String(NativeBridge.get("hostname", "iPhone 5 (ARCH1,6)")).slice(0, 26);
+        const kern = String(NativeBridge.get("kernel", "6.9.7-arch1-1")).slice(0, 26);
+        lines(NEOFETCH.map(([c, t]) => [c, t
+          .replace("root@arch-iphone", ("root@" + NativeBridge.get("hostname", "arch-iphone")).slice(0, 26))
+          .replace("HOSTNAME", host)
+          .replace("KERNEL", kern)]));
+      },
+      "uname -a": () => line("Linux " + NativeBridge.get("hostname", "arch-iphone") + " " +
+        NativeBridge.get("kernel", "6.9.7-arch1-1") + " #1 SMP PREEMPT_DYNAMIC " +
+        NativeBridge.get("arch", "aarch64") + " GNU/Linux"),
       uname: () => line("Linux"),
       whoami: () => line("root (obviously — it's 2012, jailbreaks are cool)"),
       uptime: () => line(" 9:41:00 up 0 min,  1 user,  load average: 0.06, 0.01, 1984"),

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# ios6-shell — launch the iOS 6 SpringBoard as a fullscreen Wayland kiosk.
+#
+# Runs cage (a single-window Wayland compositor) with Chromium in kiosk
+# mode pointed at the shell. Meant to be started from a TTY (autologin)
+# or by ios6-shell.service; the browser IS the session.
+set -euo pipefail
+
+UI="${IOS6_UI:-/usr/share/ios6/index.html}"
+URL="file://${UI}?kiosk=1"
+
+if ! command -v cage >/dev/null; then
+    echo "ios6-shell: cage is not installed (pacman -S cage)" >&2
+    exit 1
+fi
+
+BROWSER="$(command -v chromium || command -v chromium-browser || true)"
+if [[ -z "$BROWSER" ]]; then
+    echo "ios6-shell: chromium is not installed (pacman -S chromium)" >&2
+    exit 1
+fi
+
+# Chromium needs a writable profile dir even in kiosk mode
+PROFILE="${XDG_RUNTIME_DIR:-/tmp}/ios6-chromium"
+mkdir -p "$PROFILE"
+
+exec cage -- "$BROWSER" \
+    --kiosk \
+    --app="$URL" \
+    --user-data-dir="$PROFILE" \
+    --no-first-run \
+    --noerrdialogs \
+    --disable-infobars \
+    --disable-session-crashed-bubble \
+    --autoplay-policy=no-user-gesture-required \
+    --ozone-platform=wayland

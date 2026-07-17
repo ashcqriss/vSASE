@@ -424,13 +424,13 @@ IOS.register({
     const aboutView = sub("About", () => h("div", "content grouped",
       h("div", "about-logo", ""),
       group(
-        cell({ label: "Name", value: "arch-iphone", cls: "static" }),
+        cell({ label: "Name", value: NativeBridge.get("hostname", "arch-iphone"), cls: "static" }),
         cell({ label: "Songs", value: "1", cls: "static" }),
         cell({ label: "Photos", value: String(PhotoStore.count()), cls: "static" }),
         cell({ label: "Applications", value: "26", cls: "static" })),
       group(
         cell({ label: "Version", value: "iOS 6.1.3 (10B329)", cls: "static" }),
-        cell({ label: "Kernel", value: "Linux 6.9.7-arch1-1", cls: "static" }),
+        cell({ label: "Kernel", value: "Linux " + NativeBridge.get("kernel", "6.9.7-arch1-1"), cls: "static" }),
         cell({ label: "Init", value: "systemd 255 (sorry)", cls: "static" }),
         cell({ label: "Package Manager", value: "pacman 6.1", cls: "static" }),
         cell({ label: "Model", value: "ARCH1,6", cls: "static" }),
@@ -526,7 +526,8 @@ IOS.register({
           cell({ label: "Messages", ico: "💬", icoBg: "#4fc72d", chev: true, onTap: messagesView }),
           cell({ label: "Phone", ico: "📞", icoBg: "#4fbb2f", value: "(555) 019-4141", chev: true, onTap: () => {} }),
           cell({ label: "Safari", ico: "🧭", icoBg: "#3f8fdd", chev: true, onTap: () => {} })),
-        h("div", "group-foot", "iOS 6.1.3 · Linux 6.9.7-arch1-1 · btw")));
+        h("div", "group-foot", "iOS 6.1.3 · Linux " + NativeBridge.get("kernel", "6.9.7-arch1-1") +
+          (NativeBridge.active ? " · native" : " · simulated") + " · btw")));
     nav.push(main, false);
   }
 });

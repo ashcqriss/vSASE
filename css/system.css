@@ -28,6 +28,24 @@ html, body {
   letter-spacing: .04em;
 }
 
+/* ---------------- Kiosk mode (running as the OS shell) ---------------- */
+
+body.kiosk { background: #000; }
+body.kiosk #hint { display: none; }
+body.kiosk #device {
+  width: 100vw; height: 100vh;
+  border-radius: 0; box-shadow: none;
+  background: #000;
+}
+body.kiosk .dev-earpiece, body.kiosk .dev-camera,
+body.kiosk #power-btn, body.kiosk .dev-volume { display: none; }
+body.kiosk #screen { box-shadow: none; }
+body.kiosk #home-btn {
+  width: 40px; height: 40px; bottom: 3px;
+  z-index: 300;
+}
+body.kiosk #home-btn span { width: 14px; height: 14px; }
+
 /* ---------------- Device frame ---------------- */
 
 #device {

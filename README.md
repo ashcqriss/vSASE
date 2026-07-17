@@ -1,106 +1,137 @@
 # iOS 6 · Arch Edition
 
-A faithful, fully client-side recreation of **iOS 6** that boots on an
-**Arch Linux kernel** — or at least as close as a browser tab can legally get.
-Power it on and the machine runs an Arch-style kernel boot log
-(`[  OK  ] Started Skeuomorphic Texture Daemon`), hands off to the Apple logo,
-and drops you on the classic *slide to unlock* screen. Behind it: the full
-iOS 6 home screen, every stock app present and opening to a real page, with
-telephoning and iMessage front and center.
+**iOS 6, rebuilt on top of Arch Linux.** The Arch kernel boots, systemd comes
+up, and instead of a login prompt the machine hands you the classic
+*slide to unlock* screen. The iOS 6 SpringBoard — every stock app, telephony,
+iMessage-style Messages — runs as the system shell, fullscreen, wired to the
+real hardware underneath: real kernel and hostname in Settings → About, real
+battery from `/sys`, real Wi-Fi from NetworkManager, and real voice calls and
+SMS through ModemManager on hardware that has a modem.
 
-No frameworks, no build step, no network requests, no image assets — every
-icon is inline SVG, every "photo" is generated on a canvas, every sound is
-synthesized with WebAudio.
+| The shell (fullscreen kiosk) | Real kernel through the Terminal |
+|---|---|
+| ![kiosk home](docs/screenshots/41-kiosk-home.png) | ![uname](docs/screenshots/43-kiosk-uname.png) |
 
-| Boot (Arch kernel) | Lock | Home | iMessage |
-|---|---|---|---|
-| ![boot](docs/screenshots/01-boot.png) | ![lock](docs/screenshots/02-lock.png) | ![home](docs/screenshots/03-home.png) | ![chat](docs/screenshots/05-chat.png) |
+The screenshot on the right is not staged: `uname -a` inside the Terminal app
+reports the actual running kernel, fetched live from the `ios6d` system bridge.
 
-| Phone | Maps | Settings → About | Terminal |
-|---|---|---|---|
-| ![phone](docs/screenshots/08-phone.png) | ![maps](docs/screenshots/10-maps.png) | ![about](docs/screenshots/13-about.png) | ![neofetch](docs/screenshots/32-neofetch.png) |
+## Architecture
 
-## Run it
+```
+┌─────────────────────────────────────────────────┐
+│  SpringBoard (the iOS 6 UI)                     │  pure HTML/CSS/JS,
+│  Messages · Phone · Maps · Settings · 26 apps   │  no frameworks/assets
+├────────────────────────┬────────────────────────┤
+│  chromium --kiosk      │  ios6d (python stdlib) │  the UI polls ios6d on
+│  under cage (Wayland)  │  127.0.0.1:9641        │  127.0.0.1 for real state
+├────────────────────────┴────────────────────────┤
+│  systemd · NetworkManager · ModemManager        │  Wi-Fi, calls, SMS
+├─────────────────────────────────────────────────┤
+│  Arch Linux kernel                              │  the actual one
+└─────────────────────────────────────────────────┘
+```
+
+`ios6d` is a loopback-only bridge with a fixed whitelist: system probes
+(`uname`, `/sys/class/power_supply`, `nmcli`, `mmcli -L`) plus two actions —
+place a voice call and send an SMS via ModemManager, both with strict number
+validation. When the daemon isn't running, the shell falls back to full
+simulation automatically.
+
+## Three ways to run it
+
+### 1 · Bootable ISO (the full experience)
+
+On any Arch system with [`archiso`](https://wiki.archlinux.org/title/Archiso):
 
 ```sh
-# any static server works; so does double-clicking index.html
-python -m http.server 8000
-# → http://localhost:8000
+sudo pacman -S archiso
+sudo os/archiso/build-iso.sh            # ~6 GB workdir, takes a while
+qemu-system-x86_64 -m 3G -enable-kvm -cdrom /tmp/ios6-archiso/out/archlinux-*.iso
 ```
 
-Click the screen to power on. Drag the slider to unlock. The round button
-below the screen is the home button; the top-right edge button is sleep/wake.
+The profile derives from archiso's official `releng` profile (the one that
+builds the real monthly Arch ISO): you'll watch the genuine Arch kernel boot,
+then tty1 autologin execs `ios6-shell` — cage + Chromium in kiosk mode — and
+the machine *is* an iPhone from 2012. NetworkManager, ModemManager and
+`ios6d` are enabled as services.
 
-## What works
+### 2 · On an existing Arch install
 
-**System**
-- Arch Linux kernel boot log → Apple logo → lock screen
-- Slide-to-unlock with the shimmering label, drag it for real
-- Springboard with 2 pages (swipe between them), dock, badges, page dots
-- Live status bar (clock, carrier `arch`, Wi-Fi, battery), per-app tinting
-- Sleep/wake button, screen-off state, wake-to-lock
-- On-screen QWERTY keyboard (tap keys) — your physical keyboard works too
-- iOS 6-style alerts, action sheets, nav stacks, toggles, table views
-- Wallpaper picker and a brightness slider that actually dims the screen
+```sh
+cd os/pkg && makepkg -si                # installs ios6-shell, ios6d, units
+sudo systemctl enable --now ios6d       # system bridge (battery/Wi-Fi/modem)
+ios6-shell                              # from a TTY — or:
+sudo systemctl enable ios6-shell        # boot straight into iOS 6
+```
 
-**Telephoning** — Phone app with Favorites / Recents / Contacts / Keypad /
-Voicemail tabs, DTMF tones on the keypad, contact lookup while dialing, and a
-full in-call screen (mute/speaker grid, call timer, End button). Calls land in
-Recents.
+On a phone-shaped device running Arch Linux ARM with a ModemManager-managed
+modem (PinePhone and friends), the Phone app's dialer places **real calls**
+and green-bubble threads in Messages send **real SMS**. On a laptop you get
+real Wi-Fi, battery and kernel info, with telephony simulated.
 
-**iMessage** — conversation list with unread dots, blue iMessage bubbles vs
-green SMS per contact, photo bubbles, "Delivered" receipts, the typing-dots
-indicator, and contacts who actually text back. Camera button attaches photos
-from the camera roll.
+### 3 · Browser demo (no install)
 
-**Every page exists** — Messages, Calendar (real month grid + events), Photos
-(generated camera roll + viewer), Camera (animated viewfinder; shots save to
-the roll), Videos, Weather, Passbook, Notes (persistent, on legal paper),
-Reminders (persistent checklists), Clock (live world clocks, stopwatch, timer),
-Maps (tilted street grid, pin drops, turn-by-turn banner), Stocks (live-ish
-tickers + chart), Newsstand, iTunes, App Store, Game Center, Settings
-(airplane mode, Wi-Fi, wallpapers, About page reporting the Linux kernel),
-Contacts, Calculator (works), Compass (uses device orientation when
-available), Voice Memos, Mail, Safari (browses a small curated internet),
-Music (Now Playing that plays a generative chiptune) — plus a **Terminal**
-where `neofetch`, `uname -a` and `pacman -Syu` do the right thing.
+```sh
+python -m http.server 8000    # or just open index.html
+```
 
-## About that kernel
+Everything works in simulation mode: click the screen to power on, drag the
+slider to unlock. Append `?kiosk=1` to preview the fullscreen shell layout.
 
-A web page cannot ship a real kernel, so the Arch side is honored the way a
-simulation can: the boot sequence, `Settings → General → About`
-(`Linux 6.9.7-arch1-1`, `pacman 6.1`, model `ARCH1,6`), and the Terminal app
-are all Arch through and through. If you want the real thing underneath,
-serve this page from an actual Arch box — then the stack really is
-iOS 6 on an Arch Linux kernel, with one thin browser-shaped layer in between.
+## What's inside
 
-## Layout
+**System** — Arch kernel boot log → Apple logo → slide-to-unlock (drag it for
+real) → two-page springboard with dock, badges and swipe navigation. Live
+status bar with per-app tinting, on-screen QWERTY keyboard (hardware keyboard
+works too), iOS 6 alerts/action sheets/nav stacks/toggles, wallpaper picker,
+a brightness slider that really dims the screen, sleep/wake.
+
+**Telephoning** — Favorites / Recents / Contacts / Keypad / Voicemail, DTMF
+tones, live contact lookup while dialing, full in-call screen. Calls go
+through ModemManager when a modem is present, otherwise they're simulated —
+either way they land in Recents.
+
+**Messages** — blue iMessage vs green SMS bubbles per contact, photo bubbles,
+"Delivered" receipts, typing indicator, contacts who text back. Real SMS via
+ModemManager on modem hardware.
+
+**Every page exists** — Calendar (live month grid), Photos (generated camera
+roll), Camera (shots save to the roll), Videos, Weather, Passbook, Notes and
+Reminders (persistent), Clock (live world clocks, stopwatch, timer), Maps
+(tilted street grid, pins, turn-by-turn banner), Stocks, Newsstand, iTunes,
+App Store, Game Center, Settings (working airplane mode, Wi-Fi, wallpapers,
+About with the real kernel), Contacts, Calculator, Compass (uses device
+orientation), Voice Memos, Mail, Safari, Music (plays a generative chiptune)
+— and a Terminal where `neofetch`, `uname -a` and `pacman -Syu` do the right
+thing, against the real system when the bridge is up.
+
+| Boot | Lock | iMessage | Phone | Maps | About |
+|---|---|---|---|---|---|
+| ![boot](docs/screenshots/01-boot.png) | ![lock](docs/screenshots/02-lock.png) | ![chat](docs/screenshots/05-chat.png) | ![phone](docs/screenshots/08-phone.png) | ![maps](docs/screenshots/10-maps.png) | ![about](docs/screenshots/13-about.png) |
+
+## Repo layout
 
 ```
-index.html              device shell & layers
-css/system.css          device, status bar, lock, springboard, shared iOS 6 chrome
-css/apps.css            per-app styles
-js/data.js              contacts, threads, mail, photo generator, sound synth, prefs
-js/icons.js             all home-screen icons as inline SVG
-js/system.js            SpringBoard: app framework, keyboard, nav stacks, widgets
-js/boot.js              the Arch boot sequence
-js/apps/communication.js  Messages, Phone, Contacts, Mail
-js/apps/productivity.js   Calendar, Notes, Reminders, Clock, Calculator,
-                          Settings, Weather, Stocks, Maps
-js/apps/media.js          Photos, Camera, Music, Safari, Videos, stores,
-                          Game Center, Passbook, Newsstand, Voice Memos,
-                          Compass, Terminal
+index.html, css/, js/       the SpringBoard shell (also runs standalone)
+js/native.js                bridge client + kiosk fullscreen mode
+os/bin/ios6d                system bridge daemon (python stdlib)
+os/bin/ios6-shell           cage + chromium kiosk launcher
+os/systemd/                 ios6d.service, ios6-shell.service
+os/pkg/PKGBUILD             Arch package for existing installs
+os/archiso/                 bootable ISO profile overlay + build-iso.sh
 ```
 
 ## Inspirations
 
-- [The OldOS Project](https://github.com/zzanehip/the-oldos-project) — the
-  spiritual ancestor (iOS 4 in SwiftUI)
+- [The OldOS Project](https://github.com/zzanehip/the-oldos-project) — iOS 4
+  rebuilt in SwiftUI, the spiritual ancestor
 - [Arch Linux](https://gitlab.archlinux.org/archlinux) — the kernel, the
   attitude, the `btw`
-- [iGTK theme](https://gitlab.com/Krafting/igtk-theme) — iOS-flavored theming
-  on Linux
+- [iGTK theme](https://gitlab.com/Krafting/igtk-theme) — iOS-flavored
+  theming on Linux
 
-This is a loving fan recreation for educational purposes. Apple, iOS, iPhone
-and the 2012 sense of optimism are trademarks of Apple Inc. Arch Linux is a
-trademark of the Arch Linux project. No kernels were harmed.
+A loving fan recreation for educational purposes. Apple, iOS and iPhone are
+trademarks of Apple Inc.; Arch Linux is a trademark of the Arch Linux
+project. iMessage here is an aesthetic — Apple's actual iMessage network is
+not, and cannot be, involved. No kernels were harmed; one was gently
+repurposed.

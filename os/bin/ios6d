@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""ios6d — system bridge for the iOS 6 shell on Arch Linux.
+
+Exposes real system state to the SpringBoard UI over loopback HTTP:
+
+    GET  /status   kernel, hostname, arch, uptime, battery, wifi, modem
+    POST /call     {"number": "+15550101955"}   -> voice call via ModemManager
+    POST /sms      {"number": "...", "text": "..."} -> SMS via ModemManager
+
+Security model: binds 127.0.0.1 only, runs a fixed whitelist of read-only
+system probes plus two ModemManager actions with strictly validated input.
+Nothing else is executable through this daemon.
+
+Dependencies: python (stdlib only). Optional: networkmanager (nmcli),
+modemmanager (mmcli), pacman-contrib (checkupdates).
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+HOST, PORT = "127.0.0.1", 9641
+NUMBER_RE = re.compile(r"^\+?[0-9*#]{2,20}$")
+
+
+def run(cmd, timeout=8):
+    """Run a whitelisted command, returning stdout ('' on any failure)."""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.stdout.strip()
+    except Exception:
+        return ""
+
+
+def battery():
+    base = "/sys/class/power_supply"
+    if not os.path.isdir(base):
+        return None
+    for d in sorted(os.listdir(base)):
+        if not d.startswith(("BAT", "battery", "axp")):
+            continue
+        def rd(name):
+            try:
+                with open(os.path.join(base, d, name)) as f:
+                    return f.read().strip()
+            except OSError:
+                return ""
+        pct, st = rd("capacity"), rd("status")
+        if pct.isdigit():
+            return {"pct": int(pct), "charging": st in ("Charging", "Full")}
+    return None
+
+
+def wifi():
+    if not shutil.which("nmcli"):
+        return None
+    for ln in run(["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi"]).splitlines():
+        parts = ln.split(":")
+        if len(parts) >= 3 and parts[0] == "yes":
+            sig = parts[2]
+            return {"ssid": parts[1], "signal": int(sig) if sig.isdigit() else 0}
+    return None
+
+
+def modem():
+    if not shutil.which("mmcli"):
+        return {"present": False}
+    m = re.search(r"/Modem/(\d+)", run(["mmcli", "-L"], timeout=5))
+    if not m:
+        return {"present": False}
+    idx = m.group(1)
+    det = run(["mmcli", "-m", idx], timeout=5)
+    op = re.search(r"operator name:\s*(\S.*)", det)
+    return {"present": True, "index": idx,
+            "operator": op.group(1).strip() if op else None}
+
+
+_updates_cache = {"t": 0.0, "n": None}
+
+
+def updates():
+    """Pending package updates, cached for 10 minutes (checkupdates is slow)."""
+    now = time.time()
+    if now - _updates_cache["t"] < 600:
+        return _updates_cache["n"]
+    n = None
+    if shutil.which("checkupdates"):
+        out = run(["checkupdates"], timeout=30)
+        n = len([l for l in out.splitlines() if l.strip()])
+    _updates_cache.update(t=now, n=n)
+    return n
+
+
+def status():
+    return {
+        "kernel": run(["uname", "-r"], timeout=3) or None,
+        "arch": run(["uname", "-m"], timeout=3) or None,
+        "hostname": run(["uname", "-n"], timeout=3) or None,
+        "battery": battery(),
+        "wifi": wifi(),
+        "modem": modem(),
+        "updates": updates(),
+    }
+
+
+def place_call(number):
+    md = modem()
+    if not md["present"]:
+        return {"ok": False, "error": "no modem"}
+    idx = md["index"]
+    out = run(["mmcli", "-m", idx, f"--voice-create-call=number={number}"], timeout=10)
+    m = re.search(r"/Call/(\d+)", out)
+    if not m:
+        return {"ok": False, "error": "create-call failed"}
+    call_id = m.group(1)
+    start = run(["mmcli", "-m", idx, "-o", call_id, "--start"], timeout=10)
+    return {"ok": "error" not in start.lower(), "call": call_id}
+
+
+def send_sms(number, text):
+    md = modem()
+    if not md["present"]:
+        return {"ok": False, "error": "no modem"}
+    idx = md["index"]
+    safe_text = text.replace("\\", " ").replace("'", "’")[:480]
+    out = run(["mmcli", "-m", idx,
+               f"--messaging-create-sms=text='{safe_text}',number='{number}'"], timeout=10)
+    m = re.search(r"/SMS/(\d+)", out)
+    if not m:
+        return {"ok": False, "error": "create-sms failed"}
+    sent = run(["mmcli", "-m", idx, "-s", m.group(1), "--send"], timeout=15)
+    return {"ok": "error" not in sent.lower(), "sms": m.group(1)}
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "ios6d/1.0"
+
+    def _reply(self, code, payload):
+        body = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self._reply(200, {})
+
+    def do_GET(self):
+        if self.path == "/status":
+            self._reply(200, status())
+        else:
+            self._reply(404, {"error": "not found"})
+
+    def do_POST(self):
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+            data = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return self._reply(400, {"ok": False, "error": "bad json"})
+        number = str(data.get("number", ""))
+        if not NUMBER_RE.match(number.replace(" ", "").replace("-", "")
+                               .replace("(", "").replace(")", "")):
+            return self._reply(400, {"ok": False, "error": "bad number"})
+        number = re.sub(r"[^+0-9*#]", "", number)
+        if self.path == "/call":
+            self._reply(200, place_call(number))
+        elif self.path == "/sms":
+            self._reply(200, send_sms(number, str(data.get("text", ""))))
+        else:
+            self._reply(404, {"error": "not found"})
+
+    def log_message(self, fmt, *args):
+        pass  # keep the journal quiet
+
+
+if __name__ == "__main__":
+    print(f"ios6d listening on http://{HOST}:{PORT}")
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

@@ -1,0 +1,34 @@
+# Maintainer: iOS 6 Arch Edition contributors
+# Build from the repo checkout:  cd os/pkg && makepkg -si
+pkgname=ios6-shell
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="iOS 6 rebuilt as a fullscreen shell on top of Arch Linux (cage + chromium kiosk)"
+arch=('any')
+url="https://github.com/ashcqriss/vSASE"
+license=('MIT')
+depends=('cage' 'chromium' 'python' 'bash')
+optdepends=(
+  'networkmanager: real Wi-Fi name/signal in the status bar'
+  'modemmanager: real voice calls and SMS on modem hardware'
+  'pacman-contrib: pending-update count for the Terminal app'
+)
+options=('!strip')
+
+package() {
+  local repo="$startdir/../.."
+
+  # the shell itself
+  install -d "$pkgdir/usr/share/ios6"
+  cp -r "$repo/index.html" "$repo/css" "$repo/js" "$pkgdir/usr/share/ios6/"
+
+  # launcher + system bridge
+  install -Dm755 "$repo/os/bin/ios6-shell" "$pkgdir/usr/bin/ios6-shell"
+  install -Dm755 "$repo/os/bin/ios6d"      "$pkgdir/usr/bin/ios6d"
+
+  # systemd units
+  install -Dm644 "$repo/os/systemd/ios6d.service" \
+    "$pkgdir/usr/lib/systemd/system/ios6d.service"
+  install -Dm644 "$repo/os/systemd/ios6-shell.service" \
+    "$pkgdir/usr/lib/systemd/system/ios6-shell.service"
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=iOS 6 shell system bridge (battery, Wi-Fi, ModemManager)
+After=network.target
+Wants=ModemManager.service NetworkManager.service
+
+[Service]
+ExecStart=/usr/bin/ios6d
+Restart=on-failure
+RestartSec=2
+# loopback-only HTTP; needs system access for nmcli/mmcli/sysfs
+ProtectHome=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
