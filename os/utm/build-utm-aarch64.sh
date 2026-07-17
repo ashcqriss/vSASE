@@ -28,7 +28,16 @@ echo ":: entering chroot"
 mount --bind /dev  "$ROOT/dev"
 mount --bind /proc "$ROOT/proc"
 mount --bind /sys  "$ROOT/sys"
-cp /etc/resolv.conf "$ROOT/etc/resolv.conf"
+# the ALARM tarball ships resolv.conf as a dangling symlink — replace it
+# with real nameservers (resolved's stub 127.0.0.53 also won't do)
+rm -f "$ROOT/etc/resolv.conf"
+if [[ -f /run/systemd/resolve/resolv.conf ]]; then
+    cp /run/systemd/resolve/resolv.conf "$ROOT/etc/resolv.conf"
+elif grep -qv 127.0.0.53 /etc/resolv.conf 2>/dev/null; then
+    cp --dereference /etc/resolv.conf "$ROOT/etc/resolv.conf"
+else
+    printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > "$ROOT/etc/resolv.conf"
+fi
 trap 'umount -l "$ROOT/dev" "$ROOT/proc" "$ROOT/sys" 2>/dev/null || true' EXIT
 
 run() { chroot "$ROOT" /bin/bash -c "$*"; }
