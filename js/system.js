@@ -311,9 +311,15 @@ const IOS = (() => {
     const def = apps[id];
     if (!def) return null;
     const badge = def.badge ? def.badge() : 0;
+    const glyph = h("div", { class: "glyph", html: def.icon() });
+    // artwork override: if icons/<id>.png exists it replaces the built-in SVG
+    // (drop real iOS 6 icon art — e.g. from an OldOS checkout — into icons/)
+    const art = new Image();
+    art.onload = () => { glyph.innerHTML = ""; glyph.append(art); };
+    art.src = "icons/" + id + ".png";
     const e = h("div", { class: "sb-icon", "data-app": id },
       h("div", "glyph-wrap",
-        h("div", { class: "glyph", html: def.icon() }),
+        glyph,
         badge ? h("div", "sb-badge", String(badge)) : null),
       h("div", "label", def.name));
     e.addEventListener("click", () => open(id));

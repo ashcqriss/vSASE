@@ -309,6 +309,7 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   position: relative;
 }
 .sb-icon .glyph svg { display: block; width: 100%; height: 100%; }
+.sb-icon .glyph img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .sb-icon:active .glyph { filter: brightness(.65); }
 .sb-icon .label {
   font-size: 11px; color: #fff;
