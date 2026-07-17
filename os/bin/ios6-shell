@@ -42,24 +42,12 @@ if BROWSER="$(command -v chromium || command -v chromium-browser)"; then
         --disable-gpu \
         --ozone-platform=wayland
 elif BROWSER="$(command -v epiphany)"; then
-    # epiphany's application (kiosk) mode requires a profile dir named with
-    # this exact prefix AND an installed desktop keyfile for the app id
-    APPID="org.gnome.Epiphany.WebApp_ios6shell"
-    PROFILE="$XDG_RUNTIME_DIR/$APPID"
+    # plain window in a private profile — epiphany's application mode
+    # requires full web-app installation state (epiphany#713), and cage
+    # fullscreens the window regardless
+    PROFILE="$XDG_RUNTIME_DIR/ios6-profile"
     mkdir -p "$PROFILE"
-    DESKTOP="[Desktop Entry]
-Name=iOS 6
-Exec=$BROWSER --application-mode --profile=$PROFILE $URL
-StartupWMClass=$APPID
-Type=Application
-Categories=GNOME;WebApps;
-X-Purism-FormFactor=Workstation;Mobile;"
-    for d in "$HOME/.local/share/xdg-desktop-portal/applications" \
-             "$HOME/.local/share/applications" "$PROFILE"; do
-        mkdir -p "$d"
-        printf '%s\n' "$DESKTOP" > "$d/$APPID.desktop"
-    done
-    exec cage -- "$BROWSER" --application-mode --profile="$PROFILE" "$URL"
+    exec cage -- "$BROWSER" --profile="$PROFILE" "$URL"
 else
     echo "ios6-shell: no browser found (pacman -S chromium, or apt install epiphany-browser)" >&2
     exit 1
