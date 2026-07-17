@@ -1,0 +1,103 @@
+name: Build & boot-test the iOS 6 Arch ISO
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-iso:
+    name: mkarchiso (real Arch, real kernel)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install archiso toolchain
+        run: |
+          pacman-key --init
+          pacman -Syu --noconfirm archiso grub mtools
+      - name: Build ISO
+        run: |
+          bash os/archiso/build-iso.sh /build
+          mkdir -p out
+          mv /build/out/*.iso out/
+          ls -lh out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios6-arch-iso
+          path: out/*.iso
+          retention-days: 14
+
+  boot-test:
+    name: QEMU boot test with screenshots
+    needs: build-iso
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios6-arch-iso
+          path: iso
+
+      - name: Install QEMU and enable KVM
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils imagemagick
+          # GitHub-hosted runners expose KVM once the udev rule is set
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+          ls -la /dev/kvm || echo "no KVM — falling back to TCG"
+
+      - name: Boot ISO headless and capture screendumps
+        run: |
+          ISO=$(ls iso/*.iso)
+          ACCEL=$( [ -e /dev/kvm ] && echo kvm || echo tcg )
+          mkdir -p shots
+          qemu-system-x86_64 \
+            -accel "$ACCEL" -m 3072 -smp 2 \
+            -cdrom "$ISO" -boot d \
+            -device virtio-vga \
+            -display none \
+            -serial file:serial.log \
+            -qmp unix:/tmp/qmp.sock,server,nowait \
+            -no-reboot &
+          QPID=$!
+          screendump() {
+            python3 - "$1" <<'PYEOF'
+          import json, socket, sys, time
+          s = socket.socket(socket.AF_UNIX)
+          s.connect("/tmp/qmp.sock")
+          f = s.makefile("rw")
+          f.readline()
+          f.write(json.dumps({"execute": "qmp_capabilities"}) + "\n"); f.flush(); f.readline()
+          f.write(json.dumps({"execute": "screendump",
+                              "arguments": {"filename": sys.argv[1]}}) + "\n")
+          f.flush(); f.readline()
+          PYEOF
+          }
+          # the shell needs time: ISO boot menu -> kernel -> systemd -> cage -> chromium
+          for t in 45 90 150 240 360; do
+            sleep_left=$t; while [ $sleep_left -gt 0 ] && kill -0 $QPID 2>/dev/null; do sleep 5; sleep_left=$((sleep_left-5)); done
+            kill -0 $QPID 2>/dev/null || break
+            screendump shots/boot-${t}s.ppm || true
+          done
+          kill $QPID 2>/dev/null || true
+          for f in shots/*.ppm; do convert "$f" "${f%.ppm}.png" && rm "$f"; done
+          ls -lh shots/ || true
+          tail -50 serial.log || true
+
+      - name: Sanity-check captures
+        run: |
+          count=$(ls shots/*.png 2>/dev/null | wc -l)
+          echo "captured $count screenshots"
+          [ "$count" -ge 2 ] || { echo "::error::boot produced fewer than 2 screendumps"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boot-screenshots
+          path: shots/*.png
+          retention-days: 14
