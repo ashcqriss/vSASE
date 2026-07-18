@@ -80,8 +80,75 @@ def modem():
     idx = m.group(1)
     det = run(["mmcli", "-m", idx], timeout=5)
     op = re.search(r"operator name:\s*(\S.*)", det)
-    return {"present": True, "index": idx,
-            "operator": op.group(1).strip() if op else None}
+    out = {"present": True, "index": idx,
+           "operator": op.group(1).strip() if op else None, "ringing": None}
+    # surface an incoming (ringing) call so the shell can show the call UI
+    calls = run(["mmcli", "-m", idx, "--voice-list-calls"], timeout=5)
+    ring = re.search(r"/Call/(\d+).*?(ringing-in|incoming)", calls, re.S)
+    if ring:
+        cid = ring.group(1)
+        cdet = run(["mmcli", "-m", idx, "-o", cid], timeout=5)
+        num = re.search(r"number:\s*(\S+)", cdet)
+        out["ringing"] = {"id": cid, "number": num.group(1) if num else None}
+    return out
+
+
+_sms_seen = set()
+
+
+def sms_list():
+    """Fresh incoming SMS since the last poll."""
+    md = modem()
+    if not md["present"]:
+        return []
+    idx = md["index"]
+    listing = run(["mmcli", "-m", idx, "--messaging-list-sms"], timeout=8)
+    fresh = []
+    for m in re.finditer(r"/SMS/(\d+)", listing):
+        sid = m.group(1)
+        if sid in _sms_seen:
+            continue
+        _sms_seen.add(sid)
+        det = run(["mmcli", "-m", idx, "-s", sid], timeout=8)
+        if "receiv" not in det:
+            continue
+        num = re.search(r"number:\s*(\S+)", det)
+        txt = re.search(r"text:\s*(.+)", det)
+        fresh.append({"id": sid,
+                      "number": num.group(1) if num else None,
+                      "text": (txt.group(1).strip() if txt else "")[:300]})
+    return fresh
+
+
+def wifi_join(ssid, psk):
+    if not ALLOW_INSTALL:
+        return {"ok": False, "error": "control disabled (set IOS6D_ALLOW_INSTALL=1)"}
+    if not shutil.which("nmcli") or not (0 < len(ssid) <= 32):
+        return {"ok": False, "error": "bad request"}
+    cmd = ["nmcli", "dev", "wifi", "connect", ssid]
+    if psk:
+        cmd += ["password", psk]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+    return {"ok": p.returncode == 0,
+            "error": None if p.returncode == 0 else p.stderr.strip()[:200]}
+
+
+def power_action(action):
+    if not ALLOW_INSTALL:
+        return {"ok": False, "error": "control disabled (set IOS6D_ALLOW_INSTALL=1)"}
+    if action not in ("poweroff", "reboot") or not shutil.which("systemctl"):
+        return {"ok": False, "error": "bad action"}
+    subprocess.Popen(["systemctl", action])
+    return {"ok": True}
+
+
+def call_control(action, call_id):
+    md = modem()
+    if not md["present"] or not re.match(r"^\d{1,6}$", str(call_id)):
+        return {"ok": False, "error": "no call"}
+    flag = "--accept" if action == "accept" else "--hangup"
+    out = run(["mmcli", "-m", md["index"], "-o", str(call_id), flag], timeout=10)
+    return {"ok": "error" not in out.lower()}
 
 
 _updates_cache = {"t": 0.0, "n": None}
@@ -214,6 +281,8 @@ class Handler(BaseHTTPRequestHandler):
         elif parsed.path == "/pkg/search":
             q = urllib.parse.parse_qs(parsed.query).get("q", [""])[0]
             self._reply(200, {"results": pkg_search(q)})
+        elif parsed.path == "/sms/list":
+            self._reply(200, {"new": sms_list()})
         else:
             self._serve_ui()
 
@@ -246,6 +315,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(200, pkg_install(str(data.get("name", ""))))
         if self.path == "/pkg/upgrade":
             return self._reply(200, pkg_upgrade())
+        if self.path == "/power":
+            return self._reply(200, power_action(str(data.get("action", ""))))
+        if self.path == "/wifi/join":
+            return self._reply(200, wifi_join(str(data.get("ssid", "")), str(data.get("psk", ""))))
+        if self.path == "/call/accept":
+            return self._reply(200, call_control("accept", data.get("call", "")))
+        if self.path == "/call/hangup":
+            return self._reply(200, call_control("hangup", data.get("call", "")))
         number = str(data.get("number", ""))
         if not NUMBER_RE.match(number.replace(" ", "").replace("-", "")
                                .replace("(", "").replace(")", "")):

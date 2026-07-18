@@ -50,7 +50,8 @@ run "pacman-key --init && pacman-key --populate archlinuxarm"
 run "pacman -Syu --noconfirm"
 
 echo ":: installing the shell stack"
-run "pacman -S --noconfirm --needed cage seatd python ttf-dejavu noto-fonts dosfstools"
+run "pacman -S --noconfirm --needed cage seatd python ttf-dejavu noto-fonts dosfstools \
+     pipewire pipewire-pulse pipewire-alsa wireplumber"
 run "pacman -S --noconfirm --needed chromium || pacman -S --noconfirm --needed epiphany"
 
 echo ":: installing SpringBoard"

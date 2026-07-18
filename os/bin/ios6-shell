@@ -44,8 +44,14 @@ export LIBGL_ALWAYS_SOFTWARE=1
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
 
 if BROWSER="$(command -v chromium || command -v chromium-browser)"; then
-    PROFILE="$XDG_RUNTIME_DIR/ios6-chromium"
-    mkdir -p "$PROFILE"
+    # persistent profile on installed systems so notes/settings/installed
+    # apps survive reboots; tmpfs fallback on read-only live media
+    PROFILE=/var/lib/ios6/chromium
+    if ! mkdir -p "$PROFILE" 2>/dev/null || ! touch "$PROFILE/.w" 2>/dev/null; then
+        PROFILE="$XDG_RUNTIME_DIR/ios6-chromium"
+        mkdir -p "$PROFILE"
+    fi
+    rm -f "$PROFILE/.w" 2>/dev/null || true
     exec cage -- "$BROWSER" \
         --kiosk \
         --app="$URL" \

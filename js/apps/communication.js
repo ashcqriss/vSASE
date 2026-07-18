@@ -58,6 +58,36 @@ const CallSession = (() => {
 })();
 
 /* =================================================================
+   FaceTime — self-view from the front camera while "connecting"
+   ================================================================= */
+
+async function faceTimeCall(c) {
+  const self = h("video", { class: "ft-self", autoplay: "", playsinline: "" });
+  self.muted = true;
+  let stream = null;
+  const stateEl = h("div", "call-state", "FaceTime — connecting…");
+  const scr = h("div", { class: "call-screen", style: { zIndex: 320 } },
+    h("div", "call-name", contactName(c)), stateEl, self,
+    h("button", { class: "call-end", style: { marginTop: "auto", marginBottom: "40px" }, onclick: end }, "End"));
+  function end() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    clearTimeout(timer);
+    scr.remove(); Snd.lockSnd();
+  }
+  $id("screen").append(scr);
+  Snd.ring(0.2);
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "user" } } });
+    self.srcObject = stream;
+    self.classList.add("live");
+  } catch (e) { self.remove(); }
+  const timer = setTimeout(() => {
+    stateEl.textContent = contactName(c) + " is not available for FaceTime.";
+    setTimeout(end, 2200);
+  }, 5000);
+}
+
+/* =================================================================
    Shared: contact detail view
    ================================================================= */
 
@@ -76,8 +106,7 @@ function contactDetailView(nav, c, appRoot) {
         cell({ label: "home", value: c.email, onTap: () => IOS.open("mail") })),
       group(
         cell({ label: "Send Message", onTap: () => { IOS.open("messages"); setTimeout(() => MessagesApp.openThreadFor(c.id), 50); } }),
-        cell({ label: "FaceTime", right: gl("video", 18), onTap: () =>
-          showAlert({ title: "FaceTime Unavailable", text: contactName(c) + " is not available for FaceTime." }) }),
+        cell({ label: "FaceTime", right: gl("video", 18), onTap: () => faceTimeCall(c) }),
         cell({ label: "Share Contact", onTap: () => showSheet([
           { label: "Email Contact", onTap: () => IOS.open("mail") },
           { label: "Message Contact", onTap: () => IOS.open("messages") },
@@ -115,23 +144,38 @@ const MessagesApp = (() => {
     return last ? (last.kind === "photo" ? "Photo" : last.text) : "";
   }
 
+  let editing = false;
   function listView() {
     const list = h("div", "content list msg-list");
-    THREADS.forEach(t => {
-      const c = contactById(t.contact);
-      const row = h("div", "cell",
-        h("div", "msg-unread" + (t.unread ? "" : " off")),
-        h("div", "msg-cell-main",
-          h("div", "msg-cell-top",
-            h("span", "msg-cell-name", contactName(c)),
-            h("span", "msg-cell-time", t.time + " ›")),
-          h("div", "msg-cell-preview", threadCellPreview(t))));
-      row.addEventListener("click", () => { Snd.click(); openThread(t); });
-      list.append(row);
-    });
+    function paint() {
+      list.innerHTML = "";
+      THREADS.forEach((t, i) => {
+        const c = contactById(t.contact);
+        const del = h("div", { class: "msg-del", html: "−" });
+        del.addEventListener("click", e => {
+          e.stopPropagation();
+          showSheet([
+            { label: "Delete conversation with " + contactName(c), style: "destructive",
+              onTap: () => { THREADS.splice(i, 1); paint(); } },
+            { label: "Cancel", style: "cancel" }]);
+        });
+        const row = h("div", "cell",
+          editing ? del : h("div", "msg-unread" + (t.unread ? "" : " off")),
+          h("div", "msg-cell-main",
+            h("div", "msg-cell-top",
+              h("span", "msg-cell-name", contactName(c)),
+              h("span", "msg-cell-time", t.time + " ›")),
+            h("div", "msg-cell-preview", threadCellPreview(t))));
+        if (!editing) row.addEventListener("click", () => { Snd.click(); openThread(t); });
+        list.append(row);
+      });
+      if (!THREADS.length) list.append(h("div", "empty-msg", "No Messages"));
+    }
+    paint();
+    const editBtn = navBtn("Edit", () => { editing = !editing; editBtn.textContent = editing ? "Done" : "Edit"; paint(); });
     return navView(
       navbar("Messages", {
-        left: navBtn("Edit", () => {}),
+        left: editBtn,
         right: navBtn(gl("compose", 15), () => composeSheet())
       }),
       list);

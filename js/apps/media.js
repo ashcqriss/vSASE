@@ -24,8 +24,24 @@ IOS.register({
 
     function viewer(i) {
       const img = h("img", { src: PhotoStore.get(i) });
-      const v = h("div", "photo-viewer", img);
       let idx = i;
+      const trash = h("div", { class: "pv-trash", html: Glyphs.trash() });
+      trash.addEventListener("click", e => {
+        e.stopPropagation();
+        showSheet([
+          { label: "Delete Photo", style: "destructive", onTap: () => {
+              PhotoStore.remove(idx);
+              v.remove();
+              grid.innerHTML = "";
+              PhotoStore.all().forEach((url, k) => {
+                const im = h("img", { src: url });
+                im.addEventListener("click", () => viewer(k));
+                grid.append(im);
+              });
+            } },
+          { label: "Cancel", style: "cancel" }]);
+      });
+      const v = h("div", "photo-viewer", img, trash);
       v.addEventListener("click", e => {
         const r = v.getBoundingClientRect();
         const x = e.clientX - r.left;

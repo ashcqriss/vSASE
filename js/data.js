@@ -361,6 +361,7 @@ const PhotoStore = (() => {
     all() { ensure(); return photos; },
     get(i) { ensure(); return photos[(i % photos.length + photos.length) % photos.length]; },
     add(dataUrl) { ensure(); photos.push(dataUrl); return photos.length - 1; },
+    remove(i) { ensure(); photos.splice(i, 1); },
     count() { ensure(); return photos.length; }
   };
 })();

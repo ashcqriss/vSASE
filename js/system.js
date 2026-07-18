@@ -503,7 +503,8 @@ const IOS = (() => {
       if (x0 === null) return;
       x0 = null;
       thumb.style.transition = "transform .25s ease-out";
-      if (cur > MAXX - 30) unlock();
+      // route through IOS.unlock so wrappers (passcode lock) can intercept
+      if (cur > MAXX - 30) IOS.unlock();
       else thumb.style.transform = "translateX(0)";
     });
   })();

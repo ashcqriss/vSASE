@@ -22,9 +22,29 @@ IOS.register({
     const gridEl = h("div", "cal-grid");
     const evEl = h("div", "cal-events");
 
+    const dateKey = d => d.toISOString().slice(0, 10);
     function eventsFor(date) {
       const diff = Math.round((date - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
-      return CAL_EVENTS[diff] || [];
+      const custom = Prefs.get("calEvents", {})[dateKey(date)] || [];
+      return [...(CAL_EVENTS[diff] || []), ...custom];
+    }
+    function addEvent() {
+      const when = kbField("Time (e.g. 3:00 PM)", { returnLabel: "next" });
+      const what = kbField("Event name", { returnLabel: "Done", blueReturn: true, onReturn: () => KB.close() });
+      const wrap = h("div", "sheet-wrap", h("div", "sheet",
+        h("div", { style: { color: "#fff", fontWeight: "bold", textAlign: "center", paddingBottom: "6px" } },
+          "New Event — " + MONTHS[ym.m] + " " + selected),
+        when, what,
+        h("button", { style: { marginTop: "6px" }, onclick: () => {
+          if (!what.value.trim()) return;
+          const all = Prefs.get("calEvents", {});
+          const k = dateKey(new Date(ym.y, ym.m, selected));
+          (all[k] = all[k] || []).push({ time: when.value.trim() || "All day", name: what.value.trim() });
+          Prefs.set("calEvents", all);
+          KB.close(); wrap.remove(); Snd.click(); paint();
+        } }, "Save"),
+        h("button", { class: "cancel", onclick: () => { KB.close(); wrap.remove(); } }, "Cancel")));
+      $id("screen").append(wrap);
     }
 
     function paint() {
@@ -77,7 +97,7 @@ IOS.register({
       navbar("", {
         titleEl: h("div", "cal-month-title", prev, titleB, next),
         left: navBtn("Today", () => { ym = { y: today.getFullYear(), m: today.getMonth() }; selected = today.getDate(); paint(); }),
-        right: navBtn("+", () => showAlert({ title: "New Event", text: "Event editing is above this simulation's pay grade." }))
+        right: navBtn("+", () => addEvent())
       }),
       h("div", "cal-weekdays", ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => h("div", null, d))),
       gridEl, evEl);
@@ -253,13 +273,40 @@ IOS.register({
 
     function alarmView() {
       const alarms = Prefs.get("alarms", [{ time: "6:00 AM", label: "pacman -Syu", on: false }, { time: "9:41 AM", label: "Keynote", on: true }]);
-      alarms.forEach((a, i) => {
-        body.append(h("div", "wc-row",
-          h("div", "wc-info", h("div", "wc-city", a.time), h("div", "wc-sub", a.label)),
-          toggle(a.on, v => { alarms[i].on = v; Prefs.set("alarms", alarms); })));
-      });
-      body.append(h("div", { class: "wc-sub", style: { padding: "14px 16px", color: "#8a8a90" } },
-        "Alarms are decorative. The kernel never sleeps anyway."));
+      const save = () => Prefs.set("alarms", alarms);
+      const paint = () => { body.innerHTML = ""; build(); };
+      function build() {
+        alarms.forEach((a, i) => {
+          const row = h("div", "wc-row",
+            h("div", "wc-info", h("div", "wc-city", a.time), h("div", "wc-sub", a.label)),
+            toggle(a.on, v => { alarms[i].on = v; save(); }));
+          let lp = null;
+          row.addEventListener("pointerdown", () => { lp = setTimeout(() => showSheet([
+            { label: "Delete “" + (a.label || a.time) + "”", style: "destructive", onTap: () => { alarms.splice(i, 1); save(); paint(); } },
+            { label: "Cancel", style: "cancel" }]), 550); });
+          ["pointerup", "pointerleave"].forEach(ev => row.addEventListener(ev, () => clearTimeout(lp)));
+          body.append(row);
+        });
+        // add-alarm controls
+        const hr = h("select", null, Array.from({ length: 12 }, (_, i) => h("option", { value: i + 1 }, i + 1)));
+        const mn = h("select", null, Array.from({ length: 60 }, (_, i) => h("option", { value: i }, String(i).padStart(2, "0"))));
+        const ap = h("select", null, ["AM", "PM"].map(x => h("option", { value: x }, x)));
+        const now = new Date(); hr.value = String(((now.getHours() % 12) || 12)); mn.value = String((now.getMinutes() + 1) % 60); ap.value = now.getHours() < 12 ? "AM" : "PM";
+        const lbl = kbField("Label", { returnLabel: "Done", onReturn: () => KB.close() });
+        lbl.style.background = "#303036"; lbl.style.color = "#fff"; lbl.style.borderColor = "#55555c";
+        body.append(
+          h("div", "timer-set", hr, mn, ap),
+          h("div", { style: { padding: "0 16px 8px" } }, lbl),
+          h("div", { style: { padding: "0 16px 14px" } },
+            h("button", { class: "big-blue-btn", onclick: () => {
+              alarms.push({ time: hr.value + ":" + String(mn.value).padStart(2, "0") + " " + ap.value,
+                label: lbl.value || "Alarm", on: true });
+              save(); Snd.click(); paint();
+            } }, "Add Alarm")),
+          h("div", { class: "wc-sub", style: { padding: "0 16px 14px", color: "#8a8a90" } },
+            "Alarms genuinely fire — even from the lock screen. Long-press one to delete."));
+      }
+      build();
     }
 
     function stopwatchView() {
@@ -472,8 +519,19 @@ IOS.register({
         cell({ label: "About", chev: true, onTap: aboutView }),
         cell({ label: "Software Update", chev: true, onTap: softwareUpdate })),
       group(
-        cell({ label: "Auto-Lock", value: "Never", chev: true, onTap: () => {} }),
-        cell({ label: "Passcode Lock", value: "Off", chev: true, onTap: () => {} }),
+        cell({ label: "Auto-Lock", value: (Prefs.get("autolock", 0) || "Never") + (Prefs.get("autolock", 0) ? " min" : ""), chev: true,
+          onTap: () => showSheet([0, 1, 2, 5].map(m => ({
+            label: m === 0 ? "Never" : m + " Minute" + (m > 1 ? "s" : ""),
+            onTap: () => { Prefs.set("autolock", m); nav.pop(); generalView(); }
+          })).concat([{ label: "Cancel", style: "cancel" }])) }),
+        cell({ label: "Passcode Lock", value: Prefs.get("passcode", "") ? "On" : "Off", chev: true,
+          onTap: () => {
+            const on = !!Prefs.get("passcode", "");
+            showSheet([
+              on ? { label: "Turn Passcode Off", style: "destructive", onTap: () => PasscodeUI.disable(() => { nav.pop(); generalView(); }) }
+                 : { label: "Turn Passcode On", onTap: () => PasscodeUI.enable(() => { nav.pop(); generalView(); }) },
+              { label: "Cancel", style: "cancel" }]);
+          } }),
         cell({ label: "Keyboard", chev: true, onTap: () => showAlert({ title: "Keyboard", text: "Layout: on-screen QWERTY.\nYour physical keyboard also works — the future is now." }) })),
       group(
         cell({ label: "Reset", chev: true, onTap: () => showSheet([
@@ -492,7 +550,23 @@ IOS.register({
           label: name,
           value: sel ? "✓" : "",
           right: h("span", { style: { display: "inline-flex", gap: "5px", color: "#7b8494" } }, gl("lock", 13), gl("wifi", 14)),
-          onTap: () => showAlert({ title: name, text: "Connected. (All networks lead to localhost.)" })
+          onTap: () => {
+            if (!NativeBridge.active)
+              return showAlert({ title: name, text: "Connected. (All networks lead to localhost.)" });
+            const psk = kbField("Password", { returnLabel: "Join", blueReturn: true, onReturn: async v => {
+              KB.close(); wrap.remove();
+              const r = await fetch("http://127.0.0.1:9641/wifi/join", { method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ssid: name, psk: v }) }).then(x => x.json()).catch(() => null);
+              showAlert({ title: name, text: r && r.ok ? "Connected via NetworkManager." : ((r && r.error) || "Join failed.") });
+              IOS.refreshSignal();
+            } });
+            const wrap = h("div", "sheet-wrap", h("div", "sheet",
+              h("div", { style: { color: "#fff", fontWeight: "bold", textAlign: "center", paddingBottom: "6px" } }, "Join “" + name + "”"),
+              psk,
+              h("button", { class: "cancel", style: { marginTop: "8px" }, onclick: () => { KB.close(); wrap.remove(); } }, "Cancel")));
+            $id("screen").append(wrap);
+          }
         }))));
     });
 
@@ -583,6 +657,18 @@ IOS.register({
           h("span", null, hi + "°"),
           h("span", "lo", lo + "°")))),
       h("div", "wx-foot", "Updated " + fmtTime(new Date()) + " — forecast lovingly hard-coded"));
+
+    // on a networked device, swap in the real current temperature
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=37.32&longitude=-122.03&current_weather=true")
+      .then(r => r.json())
+      .then(d => {
+        const cw = d && d.current_weather;
+        if (!cw) return;
+        root.querySelector(".wx-big").textContent = Math.round(cw.temperature * 9 / 5 + 32) + "°";
+        root.querySelector(".wx-foot").textContent =
+          "Updated " + fmtTime(new Date()) + " — live via open-meteo (wind " + Math.round(cw.windspeed) + " km/h)";
+      })
+      .catch(() => { /* offline or blocked — the hard-coded sunshine stands */ });
   }
 });
 

@@ -7,5 +7,9 @@ networkmanager
 noto-fonts
 noto-fonts-emoji
 pacman-contrib
+pipewire
+pipewire-alsa
+pipewire-pulse
 python
 ttf-dejavu
+wireplumber

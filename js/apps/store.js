@@ -458,6 +458,8 @@ IOS.register({
           body.append(h("div", "empty-msg", "Everything is up to date (btw)."),
             h("div", "group-foot", "On real hardware this tab lists live pacman updates."));
         }
+      } else if (tab === 2) {
+        paintSources();
       } else {
         const results = h("div");
         const field = kbField(NativeBridge.active ? "Search pacman repos" : "Search tweaks", {
@@ -493,7 +495,20 @@ IOS.register({
       }
     }
 
-    const tabs = [["star", "Cydia"], ["refresh", "Changes"], ["search", "Search"]];
+    const paintSources = () => {
+      body.innerHTML = "";
+      body.append(
+        h("div", "group-label", "Entered by User"),
+        group(
+          cell({ label: "core", sub: "mirror.pkgbuild.com (official)", cls: "static" }),
+          cell({ label: "extra", sub: "mirror.pkgbuild.com (official)", cls: "static" }),
+          cell({ label: "springboard", sub: "the repo this phone came from", cls: "static" })),
+        group(cell({ label: "Add Source…", onTap: () => showAlert({ title: "Add Source",
+          text: "In this economy? Edit /etc/pacman.conf like your ancestors did." }) })),
+        h("div", "group-foot", "All sources are signed. Trust, but verify — mostly verify."));
+    };
+
+    const tabs = [["star", "Cydia"], ["refresh", "Changes"], ["book", "Sources"], ["search", "Search"]];
     const tabbar = h("div", "tabbar", tabs.map(([ico, lbl], i) => {
       const t = h("div", "tab" + (i === 0 ? " on" : ""), h("div", { class: "t-ico", html: Glyphs[ico]() }), h("div", null, lbl));
       t.addEventListener("click", () => { Snd.click(); tab = i; [...tabbar.children].forEach((x, j) => x.classList.toggle("on", j === i)); paint(); });
