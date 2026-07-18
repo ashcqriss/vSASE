@@ -77,7 +77,10 @@ const NativeBridge = (() => {
     get info() { return info; },
     get,
     call: number => post("/call", { number }),
-    sms: (number, text) => post("/sms", { number, text })
+    sms: (number, text) => post("/sms", { number, text }),
+    pkgUpdates: () => fetch(BASE + "/pkg/updates").then(r => r.json()).catch(() => null),
+    pkgSearch: q => fetch(BASE + "/pkg/search?q=" + encodeURIComponent(q)).then(r => r.json()).catch(() => null),
+    pkgInstall: name => post("/pkg/install", { name })
   };
 })();
 

@@ -7,6 +7,8 @@ Wants=ModemManager.service NetworkManager.service
 ExecStart=/usr/bin/ios6d
 Restart=on-failure
 RestartSec=2
+# lets Cydia's Search tab install real packages via pacman; remove to disable
+Environment=IOS6D_ALLOW_INSTALL=1
 # loopback-only HTTP; needs system access for nmcli/mmcli/sysfs
 ProtectHome=yes
 NoNewPrivileges=yes

@@ -68,17 +68,24 @@ const BOOT_LOG = [
     setTimeout(next, 350);
 
     function finishLog() {
-      setTimeout(() => {
-        appleEl.classList.remove("hidden");
+      const toLock = () => {
+        bootEl.classList.add("hidden");
+        IOS.applyWallpaper();
+        IOS.applyBrightness();
+        IOS.refreshSignal();
+        IOS.tick();
+        $id("keyboard").classList.toggle("kb-dark", Prefs.get("kbdark", false));
+        IOS.showLock();
+      };
+      if (Prefs.get("verboseboot", false)) {
+        // Cydia's "Verbose Boot" tweak: no fruit, straight from log to lock
+        setTimeout(toLock, 700);
+      } else {
         setTimeout(() => {
-          bootEl.classList.add("hidden");
-          IOS.applyWallpaper();
-          IOS.applyBrightness();
-          IOS.refreshSignal();
-          IOS.tick();
-          IOS.showLock();
-        }, 2400);
-      }, 500);
+          appleEl.classList.remove("hidden");
+          setTimeout(toLock, 2400);
+        }, 500);
+      }
     }
   }
 

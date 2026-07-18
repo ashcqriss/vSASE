@@ -354,13 +354,7 @@ storeApp("itunes", "iTunes", Icons.itunes, "New & Noteworthy", [
   ["bell", "linear-gradient(#f5871f,#c05a00)", "Marimba Forever", "Various Ringtones", "$0.99"]
 ], "Music, movies & marimba.");
 
-storeApp("appstore", "App Store", Icons.appstore, "Featured Apps", [
-  ["download", "linear-gradient(#1793d1,#0a4a70)", "pacman GUI Pro", "Finally, a wrapper for your wrapper", "FREE"],
-  ["book", "linear-gradient(#7a5c3a,#4a3520)", "Wiki Reader", "RTFM, beautifully", "FREE"],
-  ["bubble", "linear-gradient(#4aa8e0,#1a6aa8)", "Chirper", "140 characters ought to be enough", "FREE"],
-  ["star", "linear-gradient(#4a8a4a,#255525)", "Angry Penguins", "Fling penguins at proprietary software", "$0.99"],
-  ["keypad", "linear-gradient(#43464d,#191b1f)", "RPN Calculator HD", "For people who disagree with = signs", "$2.99"]
-], "All apps reviewed by a shadowy cabal.");
+/* App Store lives in js/apps/store.js now — with working installs. */
 
 /* =================================================================
    Game Center

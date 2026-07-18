@@ -272,9 +272,21 @@ const IOS = (() => {
   const HOME_PAGES = [
     ["messages", "calendar", "photos", "camera", "videos", "weather", "passbook", "notes",
      "reminders", "clock", "maps", "stocks", "newsstand", "itunes", "appstore", "gamecenter"],
-    ["settings", "contacts", "calculator", "compass", "voicememos", "terminal"]
+    ["settings", "contacts", "calculator", "compass", "voicememos", "terminal", "cydia"]
   ];
   const DOCK = ["phone", "mail", "safari", "music"];
+  let editMode = false; // wiggle mode: long-press an icon, ✕ removes installed apps
+
+  function currentPages() {
+    const pages = HOME_PAGES.map(p => [...p]);
+    const extra = (typeof AppMarket !== "undefined")
+      ? AppMarket.installed().filter(id => apps[id]) : [];
+    for (const id of extra) {
+      if (pages[pages.length - 1].length >= 16) pages.push([]);
+      pages[pages.length - 1].push(id);
+    }
+    return pages;
+  }
 
   /* ---- status bar ---- */
   function setTint(t) {
@@ -285,7 +297,8 @@ const IOS = (() => {
     const airplane = Prefs.get("airplane", false);
     const wifi = Prefs.get("wifi", true);
     const carrier = statusbar.querySelector(".sb-carrier");
-    if (airplane) carrier.innerHTML = Glyphs.plane(); else carrier.textContent = "arch";
+    if (airplane) carrier.innerHTML = Glyphs.plane();
+    else carrier.textContent = Prefs.get("carrier", "arch");
     statusbar.querySelector(".sb-signal").classList.toggle("off", airplane);
     statusbar.querySelector(".sb-wifi").style.visibility = (wifi && !airplane) ? "visible" : "hidden";
   }
@@ -317,25 +330,44 @@ const IOS = (() => {
     const art = new Image();
     art.onload = () => { glyph.innerHTML = ""; glyph.append(art); };
     art.src = "icons/" + id + ".png";
-    const e = h("div", { class: "sb-icon", "data-app": id },
+    const removable = editMode && def.removable;
+    const e = h("div", { class: "sb-icon" + (editMode ? " wiggling" : ""), "data-app": id },
       h("div", "glyph-wrap",
         glyph,
-        badge ? h("div", "sb-badge", String(badge)) : null),
+        badge && !editMode ? h("div", "sb-badge", String(badge)) : null,
+        removable ? h("div", { class: "sb-remove", onclick: ev => {
+          ev.stopPropagation();
+          AppMarket.uninstall(id);
+          buildHome();
+        } }, "✕") : null),
       h("div", "label", def.name));
-    e.addEventListener("click", () => open(id));
+    e.addEventListener("click", () => { if (!editMode) open(id); });
+    // long-press enters wiggle mode
+    let lp = null;
+    e.addEventListener("pointerdown", () => {
+      if (editMode) return;
+      lp = setTimeout(() => { editMode = true; Snd.click(); buildHome(); }, 650);
+    });
+    const cancelLp = () => { if (lp) { clearTimeout(lp); lp = null; } };
+    e.addEventListener("pointerup", cancelLp);
+    e.addEventListener("pointerleave", cancelLp);
+    e.addEventListener("pointermove", cancelLp); // a drag is a swipe, not a hold
     return e;
   }
 
   function buildHome() {
+    const layout = currentPages();
+    if (page >= layout.length) page = layout.length - 1;
     const pages = $id("pages");
     pages.innerHTML = "";
-    HOME_PAGES.forEach(ids => pages.append(h("div", "page", ids.map(iconEl))));
+    layout.forEach(ids => pages.append(h("div", "page", ids.map(iconEl))));
+    pages.classList.toggle("editing", editMode);
     const dock = $id("dock-icons");
     dock.innerHTML = "";
     DOCK.forEach(id => dock.append(iconEl(id)));
     const dots = $id("page-dots");
     dots.innerHTML = "";
-    HOME_PAGES.forEach((_, i) => dots.append(h("i", i === page ? "on" : "")));
+    layout.forEach((_, i) => dots.append(h("i", i === page ? "on" : "")));
     snapPage(false);
   }
 
@@ -409,7 +441,8 @@ const IOS = (() => {
       setTint("trans");
       state = "home";
     } else if (state === "home") {
-      page = 0; snapPage();
+      if (editMode) { editMode = false; buildHome(); }
+      else { page = 0; snapPage(); }
     } else if (state === "asleep") {
       wake();
     }

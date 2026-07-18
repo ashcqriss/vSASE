@@ -121,6 +121,17 @@ either way they land in Recents.
 "Delivered" receipts, typing indicator, contacts who text back. Real SMS via
 ModemManager on modem hardware.
 
+**App Store & Cydia** — the App Store actually installs apps: they appear
+on the home screen, persist, open as working mini-apps (Chirper, a playable
+Angry Penguins, RPN Calc, Wiki Reader, Flashlight), and are removed with a
+long-press wiggle + ✕, like it's 2012. Cydia ships preinstalled (the device
+is "jailbroken", it runs Arch after all) with tweaks that genuinely work —
+custom carrier text, dark keyboard, verbose boot, felt wallpaper — and on
+real hardware its Changes/Search tabs front **actual pacman** through
+`ios6d`: live update lists, repo search, and real package installs
+(loopback-only, validated names, disable by removing
+`IOS6D_ALLOW_INSTALL=1` from ios6d.service).
+
 **Every page exists** — Calendar (live month grid), Photos (generated camera
 roll), Camera (shots save to the roll), Videos, Weather, Passbook, Notes and
 Reminders (persistent), Clock (live world clocks, stopwatch, timer), Maps
