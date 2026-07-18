@@ -43,6 +43,9 @@ trap 'umount -l "$ROOT/dev" "$ROOT/proc" "$ROOT/sys" 2>/dev/null || true' EXIT
 run() { chroot "$ROOT" /bin/bash -c "$*"; }
 
 echo ":: initializing pacman and updating"
+# in a plain chroot the rootfs is not a mount point, so pacman's disk
+# space check cannot resolve the cachedir — disable it (pacstrap does too)
+sed -i 's/^CheckSpace/#CheckSpace/' "$ROOT/etc/pacman.conf"
 run "pacman-key --init && pacman-key --populate archlinuxarm"
 run "pacman -Syu --noconfirm"
 

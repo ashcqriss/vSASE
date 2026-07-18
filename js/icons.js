@@ -14,22 +14,26 @@ const Icons = (() => {
     const s = stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join("");
     return `<radialGradient id="${id}" cx="${cx}" cy="${cy}" r="${r}">${s}</radialGradient>`;
   }
-  const GLOSS = `<path d="M0,0 h57 v20 c-14,7 -43,7 -57,0 z" fill="#ffffff" opacity="0.22"/>`;
-
   function icon(build, { gloss = true } = {}) {
     const p = "i" + (uid++) + "_";
     const { defs, body } = build(p);
+    // the iOS 6 sheen: a bright band across the top with a convex lower edge
+    const glossDefs = `<linearGradient id="${p}gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.08"/></linearGradient>`;
+    const glossBody = `<path d="M0,0 h57 v19 c-13,8.5 -44,8.5 -57,0 z" fill="url(#${p}gloss)"/>`;
     return `<svg viewBox="0 0 57 57" xmlns="http://www.w3.org/2000/svg">
-      <defs>${defs}</defs>${body}${gloss ? GLOSS : ""}</svg>`;
+      <defs>${defs}${gloss ? glossDefs : ""}</defs>${body}${gloss ? glossBody : ""}</svg>`;
   }
 
   /* ---- individual icons ---- */
 
   const messages = () => icon(p => ({
-    defs: grad(p + "g", [[0, "#8ee968"], [0.5, "#4fc72d"], [1, "#2f9e13"]]),
+    defs: grad(p + "g", [[0, "#96ec6d"], [0.45, "#54ca30"], [0.55, "#3cb31c"], [1, "#2f9e13"]]) +
+          grad(p + "b", [[0, "#ffffff"], [1, "#e8ece8"]]),
     body: `<rect width="57" height="57" fill="url(#${p}g)"/>
-      <path d="M28.5 12c-10.2 0-18.5 6.4-18.5 14.3 0 4.5 2.7 8.5 6.9 11.1-.3 2.4-1.3 4.7-3.2 6.4 3.4-.3 6.4-1.5 8.7-3.2 1.9.5 4 .8 6.1.8 10.2 0 18.5-6.4 18.5-14.3S38.7 12 28.5 12z"
-        fill="#fff" stroke="#1d7a08" stroke-width="1"/>`
+      <path d="M28.5 11.5c-10.6 0-19 6.5-19 14.6 0 4.7 2.9 8.9 7.4 11.6-.4 2.6-1.5 5-3.6 6.9 3.7-.4 6.9-1.7 9.4-3.6 1.8.4 3.8.7 5.8.7 10.6 0 19-6.5 19-14.6s-8.4-15.6-19-15.6z"
+        fill="url(#${p}b)" stroke="#1d7a08" stroke-width="0.8"/>`
   }));
 
   const calendar = () => {
@@ -46,31 +50,37 @@ const Icons = (() => {
   };
 
   const photos = () => icon(p => {
+    const colors = ["#f9d949", "#f5a833", "#ef6e2b", "#e0382b", "#c03a92", "#5a4ac8", "#3a86d8", "#4fb848"];
     let petals = "";
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4;
-      const colors = ["#f6d54a", "#f2a93b", "#e8712f", "#d8452f", "#b23a8f", "#4a63c8", "#3a9ad8", "#58c04a"];
-      petals += `<ellipse cx="${28.5 + Math.cos(a) * 12}" cy="${26 + Math.sin(a) * 12}" rx="7.5" ry="4.6"
-        transform="rotate(${a * 180 / Math.PI} ${28.5 + Math.cos(a) * 12} ${26 + Math.sin(a) * 12})"
-        fill="${colors[i]}" opacity="0.92"/>`;
+    for (let ring = 0; ring < 2; ring++) {
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4 + (ring ? Math.PI / 8 : 0);
+        const d = ring ? 9 : 12.5, rx = ring ? 6.2 : 8, ry = ring ? 3.6 : 4.6;
+        petals += `<ellipse cx="${28.5 + Math.cos(a) * d}" cy="${27 + Math.sin(a) * d}" rx="${rx}" ry="${ry}"
+          transform="rotate(${a * 180 / Math.PI} ${28.5 + Math.cos(a) * d} ${27 + Math.sin(a) * d})"
+          fill="${colors[i]}" opacity="${ring ? 0.65 : 0.94}"/>`;
+      }
     }
     return {
-      defs: grad(p + "w", [[0, "#fdfdfd"], [1, "#d8dbe0"]]),
+      defs: grad(p + "w", [[0, "#ffffff"], [1, "#d4d8de"]]) +
+            rgrad(p + "c", [[0, "#ffffff"], [0.7, "#fbf6e2"], [1, "#efe2b0"]]),
       body: `<rect width="57" height="57" fill="url(#${p}w)"/>${petals}
-        <circle cx="28.5" cy="26" r="5" fill="#fff" stroke="#e0c040" stroke-width="1.5"/>`
+        <circle cx="28.5" cy="27" r="5.2" fill="url(#${p}c)" stroke="#dcc36a" stroke-width="1"/>`
     };
   });
 
   const camera = () => icon(p => ({
-    defs: grad(p + "g", [[0, "#c3c9d1"], [0.5, "#9aa2ad"], [1, "#7b8391"]]) +
-          rgrad(p + "l", [[0, "#9fc3e8"], [0.5, "#33557e"], [1, "#101d30"]]),
+    defs: grad(p + "g", [[0, "#d6dae1"], [0.48, "#aeb4bd"], [0.52, "#99a0aa"], [1, "#848b96"]]) +
+          rgrad(p + "l", [[0, "#b8d8f2"], [0.35, "#4a7ab8"], [0.7, "#1e3a66"], [1, "#0a1526"]], 0.38, 0.32, 0.95) +
+          rgrad(p + "ring", [[0, "#5a616c"], [1, "#23272e"]]),
     body: `<rect width="57" height="57" fill="url(#${p}g)"/>
-      <rect x="6" y="16" width="45" height="28" rx="4" fill="#5b626d" stroke="#3d434c"/>
-      <rect x="10" y="12" width="12" height="6" rx="2" fill="#5b626d"/>
-      <circle cx="28.5" cy="30" r="10.5" fill="#2c313a"/>
-      <circle cx="28.5" cy="30" r="8" fill="url(#${p}l)"/>
-      <circle cx="25.5" cy="27" r="2.4" fill="#cfe4f5" opacity="0.8"/>
-      <circle cx="44" cy="21" r="2" fill="#f2d24a"/>`
+      <rect x="5" y="15" width="47" height="29" rx="3.5" fill="#646b76" stroke="#3d434c" stroke-width="0.8"/>
+      <rect x="9" y="11" width="13" height="6.5" rx="2" fill="#646b76" stroke="#3d434c" stroke-width="0.7"/>
+      <circle cx="28.5" cy="29.5" r="12" fill="url(#${p}ring)"/>
+      <circle cx="28.5" cy="29.5" r="9.4" fill="url(#${p}l)" stroke="#0d1420" stroke-width="0.6"/>
+      <circle cx="28.5" cy="29.5" r="4" fill="#16294a" opacity="0.85"/>
+      <ellipse cx="24.8" cy="25.6" rx="3" ry="2" fill="#dceafa" opacity="0.75" transform="rotate(-30 24.8 25.6)"/>
+      <circle cx="44.5" cy="20.5" r="2.2" fill="#f2d24a" stroke="#a8862a" stroke-width="0.5"/>`
   }));
 
   const videos = () => icon(p => ({
@@ -151,7 +161,12 @@ const Icons = (() => {
       <path d="M38 -2 L46 59" stroke="#fff" stroke-width="4"/>
       <rect x="2" y="44" width="16" height="11" fill="#b5d98a"/>
       <rect x="44" y="38" width="13" height="12" fill="#b5d98a"/>
-      <path d="M28 14 l14 14 M28 28 l14 -14" stroke="#e8624a" stroke-width="0" fill="none"/>
+      <g transform="translate(13 40)">
+        <path d="M0 -6 C0 -8 2 -9 6 -9 C10 -9 12 -8 12 -6 L12 0 C12 4 9 7 6 8 C3 7 0 4 0 0 z"
+          fill="#2a5cb8" stroke="#fff" stroke-width="1.2"/>
+        <path d="M0 -6 C0 -8 2 -9 6 -9 C10 -9 12 -8 12 -6 L12 -4 L0 -4 z" fill="#c8382a"/>
+        <text x="6" y="4.5" text-anchor="middle" font-family="Helvetica,Arial" font-size="6" font-weight="bold" fill="#fff">280</text>
+      </g>
       <g transform="translate(33 20)">
         <path d="M0 -9 C5 -9 8 -5.5 8 -1.5 C8 3 3 8 0 12 C-3 8 -8 3 -8 -1.5 C-8 -5.5 -5 -9 0 -9 z" fill="#d2402e" stroke="#8e2417"/>
         <circle cx="0" cy="-1.5" r="3" fill="#f0b0a5"/>
@@ -221,12 +236,28 @@ const Icons = (() => {
       <circle cx="${cx}" cy="${cy}" r="${r * 0.42}" fill="url(#${p}bg)"/>`;
   };
 
-  const settings = () => icon(p => ({
-    defs: grad(p + "bg", [[0, "#b4b8bf"], [1, "#7f848d"]]) + grad(p + "m", [[0, "#e8eaee"], [1, "#9aa0a8"]]),
-    body: `<rect width="57" height="57" fill="url(#${p}bg)"/>
-      ${gear(20, 22, 11, "#5d636d", p, 10)}
-      ${gear(39, 38, 8, "#6d737d", p, 9)}`
-  }));
+  const settings = () => icon(p => {
+    const metalGear = (cx, cy, r, n, g1, g2) => {
+      let teeth = "";
+      for (let i = 0; i < n; i++) {
+        const a = i * 360 / n;
+        teeth += `<path d="M-2.6 ${-r - 3.6} L2.6 ${-r - 3.6} L3.4 ${-r + 1} L-3.4 ${-r + 1} z"
+          transform="translate(${cx} ${cy}) rotate(${a})" fill="url(#${g1})"/>`;
+      }
+      return `${teeth}
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${g1})" stroke="#40454d" stroke-width="0.7"/>
+        <circle cx="${cx}" cy="${cy}" r="${r * 0.62}" fill="url(#${g2})"/>
+        <circle cx="${cx}" cy="${cy}" r="${r * 0.34}" fill="url(#${p}bg)" stroke="#4a4f57" stroke-width="0.8"/>`;
+    };
+    return {
+      defs: grad(p + "bg", [[0, "#c2c6cd"], [0.5, "#9298a2"], [1, "#6f747e"]]) +
+            grad(p + "m1", [[0, "#f0f2f5"], [0.5, "#aab0ba"], [1, "#787e88"]]) +
+            grad(p + "m2", [[0, "#666c76"], [1, "#b9bfc8"]]),
+      body: `<rect width="57" height="57" fill="url(#${p}bg)"/>
+        ${metalGear(21, 23, 12.5, 12, p + "m1", p + "m2")}
+        ${metalGear(41, 40, 8.5, 10, p + "m1", p + "m2")}`
+    };
+  });
 
   const contacts = () => icon(p => ({
     defs: grad(p + "t", [[0, "#f6f2e8"], [1, "#dcd4c0"]]),
@@ -290,32 +321,49 @@ const Icons = (() => {
   }));
 
   const mail = () => icon(p => ({
-    defs: grad(p + "s", [[0, "#a5c8ec"], [0.55, "#5a93d8"], [1, "#2f6ab8"]]),
+    defs: grad(p + "s", [[0, "#bcd9f2"], [0.5, "#6ba2de"], [1, "#3572bc"]]) +
+          grad(p + "e", [[0, "#ffffff"], [1, "#dde2e8"]]),
     body: `<rect width="57" height="57" fill="url(#${p}s)"/>
-      <rect x="7" y="16" width="43" height="26" rx="3" fill="#f2f4f7" stroke="#8b93a1"/>
-      <path d="M7 18 L28.5 33 L50 18" fill="none" stroke="#8b93a1" stroke-width="1.6"/>
-      <path d="M7 41 L22 29 M50 41 L35 29" stroke="#8b93a1" stroke-width="1.2"/>`
+      <g fill="#ffffff" opacity="0.85">
+        <ellipse cx="10" cy="49" rx="12" ry="5"/><ellipse cx="20" cy="46" rx="9" ry="4.5"/>
+        <ellipse cx="46" cy="50" rx="13" ry="6"/><ellipse cx="37" cy="48" rx="8" ry="4"/>
+      </g>
+      <rect x="7.5" y="16" width="42" height="26" rx="2.5" fill="url(#${p}e)" stroke="#8b93a1" stroke-width="0.9"/>
+      <path d="M8 17.5 L28.5 32.5 L49 17.5" fill="none" stroke="#9aa2ad" stroke-width="1.5"/>
+      <path d="M8 40.5 L23 29.5 M49 40.5 L34 29.5" stroke="#9aa2ad" stroke-width="1.1"/>`
   }));
 
   const safari = () => icon(p => ({
-    defs: rgrad(p + "b", [[0, "#bfe0f7"], [0.45, "#3f8fdd"], [1, "#1244a0"]]),
+    defs: rgrad(p + "b", [[0, "#c8e6fa"], [0.4, "#4795e2"], [1, "#0e3f9e"]], 0.5, 0.3, 0.9) +
+          grad(p + "ring", [[0, "#ffffff"], [1, "#c8d0da"]]),
     body: `<rect width="57" height="57" fill="url(#${p}b)"/>
-      <circle cx="28.5" cy="28.5" r="20" fill="#f2f5f8" stroke="#c5ccd6"/>
-      <circle cx="28.5" cy="28.5" r="18" fill="url(#${p}b)"/>
-      ${Array.from({ length: 24 }, (_, i) => {
-        const a = i * Math.PI / 12;
-        const long = i % 2 === 0;
-        return `<line x1="${28.5 + Math.cos(a) * (long ? 14.5 : 15.8)}" y1="${28.5 + Math.sin(a) * (long ? 14.5 : 15.8)}"
-                      x2="${28.5 + Math.cos(a) * 17.3}" y2="${28.5 + Math.sin(a) * 17.3}" stroke="#fff" stroke-width="1"/>`;
+      <circle cx="28.5" cy="28.5" r="21" fill="url(#${p}ring)" stroke="#9ea8b5" stroke-width="0.8"/>
+      <circle cx="28.5" cy="28.5" r="18.2" fill="url(#${p}b)"/>
+      <g stroke="#ffffff" stroke-width="0.9" fill="none" opacity="0.85">
+        <ellipse cx="28.5" cy="28.5" rx="6.5" ry="18.2"/>
+        <ellipse cx="28.5" cy="28.5" rx="13" ry="18.2"/>
+        <line x1="10.3" y1="28.5" x2="46.7" y2="28.5"/>
+        <path d="M12.8 19.5 a24 24 0 0 1 31.4 0 M12.8 37.5 a24 24 0 0 0 31.4 0"/>
+      </g>
+      ${Array.from({ length: 12 }, (_, i) => {
+        const a = i * Math.PI / 6;
+        return `<line x1="${28.5 + Math.cos(a) * 19.2}" y1="${28.5 + Math.sin(a) * 19.2}"
+                      x2="${28.5 + Math.cos(a) * 20.6}" y2="${28.5 + Math.sin(a) * 20.6}" stroke="#6b7686" stroke-width="1"/>`;
       }).join("")}
-      <path d="M39 18 L31.5 31.5 L18 39 L25.5 25.5 z" fill="#fff"/>
-      <path d="M39 18 L31.5 31.5 L25.5 25.5 z" fill="#e84e3c"/>`
+      <path d="M40.5 16.5 L31.8 31.2 L16.5 40.5 L25.2 25.8 z" fill="#f4f6f8"/>
+      <path d="M40.5 16.5 L31.8 31.2 L25.2 25.8 z" fill="#e8493a"/>
+      <circle cx="28.5" cy="28.5" r="1.6" fill="#dfe4ea"/>`
   }));
 
   const music = () => icon(p => ({
-    defs: rgrad(p + "o", [[0, "#fbc370"], [0.5, "#f5872f"], [1, "#e05a12"]]),
+    defs: rgrad(p + "o", [[0, "#fcd08a"], [0.45, "#f78d2f"], [1, "#dd5510"]], 0.5, 0.25, 0.95),
     body: `<rect width="57" height="57" fill="url(#${p}o)"/>
-      <path d="M22 40.5 a4.5 3.8 0 1 1 -1.6 -3 L20.4 18 L40 14 L40 36.5 a4.5 3.8 0 1 1 -1.6 -3 L38.4 19.5 L22 23 z" fill="#fff"/>`
+      <g fill="#ffffff">
+        <ellipse cx="19.5" cy="41.5" rx="5" ry="3.8" transform="rotate(-18 19.5 41.5)"/>
+        <ellipse cx="37.5" cy="38" rx="5" ry="3.8" transform="rotate(-18 37.5 38)"/>
+        <path d="M22.6 41 V19.4 l19.8 -3.8 V37.4 h-2.6 V22.4 l-14.6 2.8 V41 z"/>
+        <path d="M22.6 15.6 L42.4 11.8 v5.2 L22.6 20.8 z"/>
+      </g>`
   }));
 
   const facetime = () => icon(p => ({
