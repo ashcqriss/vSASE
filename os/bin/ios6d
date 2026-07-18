@@ -120,6 +120,17 @@ def sms_list():
     return fresh
 
 
+def sysinfo():
+    """Real system stats for the Terminal's free/df/ps."""
+    ps = run(["ps", "-eo", "pid,pcpu,pmem,comm", "--sort=-pmem"], timeout=8)
+    return {
+        "uptime": run(["uptime"], timeout=5),
+        "free": run(["free", "-h"], timeout=5),
+        "df": run(["df", "-h", "/"], timeout=5),
+        "ps": "\n".join(ps.splitlines()[:12]),
+    }
+
+
 def wifi_join(ssid, psk):
     if not ALLOW_INSTALL:
         return {"ok": False, "error": "control disabled (set IOS6D_ALLOW_INSTALL=1)"}
@@ -283,6 +294,8 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(200, {"results": pkg_search(q)})
         elif parsed.path == "/sms/list":
             self._reply(200, {"new": sms_list()})
+        elif parsed.path == "/sysinfo":
+            self._reply(200, sysinfo())
         else:
             self._serve_ui()
 

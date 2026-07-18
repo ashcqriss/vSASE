@@ -418,38 +418,74 @@ IOS.register({
           h("p", null, h("a", { onclick: () => go("apple.com") }, "← back to apple.com")))),
       "start": () => h("div", "web saf-start",
         h("p", { style: { fontWeight: "bold", marginBottom: "14px" } }, "Bookmarks"),
-        h("div", { class: "bookmark-tile", onclick: () => go("apple.com") }, gl("book", 14), " Apple"),
-        h("div", { class: "bookmark-tile", onclick: () => go("archlinux.org") }, gl("book", 14), " Arch Linux"),
-        h("p", { style: { marginTop: "18px", fontSize: "12px" } }, "This Safari browses a very small, very curated internet."))
+        h("div", { class: "bookmark-tile", onclick: () => go("apple.com") }, gl("book", 14), " Apple (curated)"),
+        h("div", { class: "bookmark-tile", onclick: () => go("archlinux.org") }, gl("book", 14), " Arch Linux (curated)"),
+        h("div", { class: "bookmark-tile", onclick: () => go("https://example.com") }, gl("book", 14), " example.com (real)"),
+        h("div", { class: "bookmark-tile", onclick: () => go("https://info.cern.ch") }, gl("book", 14), " info.cern.ch (real, the first site)"),
+        h("p", { style: { marginTop: "18px", fontSize: "12px" } },
+          "Type any address or search: when the device is online, Safari loads the real page. Many big sites (Google, Facebook) refuse to be framed and will show a placeholder — a 2012-era limitation you'll find oddly authentic. The Terminal's curl and ping reach the whole internet regardless."))
     };
 
     const addr = kbField("Search or enter website", {
       cls: "", returnLabel: "Go", blueReturn: true,
-      onReturn: v => { KB.close(); go(v.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "")); }
+      onReturn: v => { KB.close(); go(v.trim()); }
     });
 
-    function go(url) {
-      const key = Object.keys(SITES).find(s => url && url.includes(s.split(".")[0]) && s !== "start");
+    /* navigation history across curated + real-internet pages */
+    const hist = [];
+    let hi = -1;
+    function navigate(url) { hist.splice(hi + 1); hist.push(url); hi = hist.length - 1; render(url); }
+    function goBack() { if (hi > 0) { hi--; render(hist[hi]); } }
+    function goFwd() { if (hi < hist.length - 1) { hi++; render(hist[hi]); } }
+
+    function go(input) {
+      if (!input) return navigate("");
+      const bare = input.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const key = Object.keys(SITES).find(s => bare.includes(s.split(".")[0]) && s !== "start");
+      if (key) return navigate("curated:" + key);
+      // looks like a URL -> load it for real; otherwise search the real web
+      if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(input.replace(/^https?:\/\//, "")))
+        return navigate(/^https?:\/\//.test(input) ? input : "https://" + input);
+      return navigate("https://lite.duckduckgo.com/lite/?q=" + encodeURIComponent(input));
+    }
+
+    function render(url) {
       page.innerHTML = "";
+      page.scrollTop = 0;
       if (!url) { page.append(SITES.start()); addr.value = ""; return; }
-      if (key) { page.append(SITES[key]()); addr.value = "http://www." + key + "/"; }
-      else {
-        addr.value = url;
+      if (url.startsWith("curated:")) {
+        const key = url.slice(8);
+        page.append(SITES[key]());
+        addr.value = "http://www." + key + "/";
+        return;
+      }
+      /* the real internet, framed — works whenever the device is online
+         and the site does not refuse to be embedded */
+      addr.value = url;
+      const spin = h("div", { style: { padding: "40px 0", display: "flex", justifyContent: "center" } },
+        h("div", "boot-spinner"));
+      const frame = h("iframe", { src: url, class: "saf-frame" });
+      let loaded = false;
+      frame.addEventListener("load", () => { loaded = true; spin.remove(); });
+      setTimeout(() => {
+        if (loaded) return;
+        frame.remove(); spin.remove();
         page.append(h("div", "web body-pad",
           h("h2", null, "Cannot Open Page"),
-          h("p", null, "Safari cannot open “" + url + "” because this internet contains exactly two websites."),
-          h("p", null, h("a", { onclick: () => go("apple.com") }, "apple.com"), " · ",
+          h("p", null, "Safari could not load “" + url + "”. Either this device is offline, or the site refuses to appear inside other pages (their loss)."),
+          h("p", null, "Meanwhile, the curated internet is always up: ",
+            h("a", { onclick: () => go("apple.com") }, "apple.com"), " · ",
             h("a", { onclick: () => go("archlinux.org") }, "archlinux.org"))));
-      }
-      page.scrollTop = 0;
+      }, 9000);
+      page.append(spin, frame);
     }
 
     root.append(
       h("div", "saf-bars", addr),
       page,
       h("div", "toolbar",
-        h("span", { class: "tb-ico", html: Glyphs.chevL(), onclick: () => { Snd.click(); go("apple.com"); } }),
-        h("span", { class: "tb-ico", html: Glyphs.chevR(), onclick: () => { Snd.click(); go("archlinux.org"); } }),
+        h("span", { class: "tb-ico", html: Glyphs.chevL(), onclick: () => { Snd.click(); goBack(); } }),
+        h("span", { class: "tb-ico", html: Glyphs.chevR(), onclick: () => { Snd.click(); goFwd(); } }),
         h("span", { class: "tb-ico", html: Glyphs.share(), onclick: () => showSheet([
           { label: "Clip to Obsidian", onTap: () => {
               if (typeof AppMarket !== "undefined" && !AppMarket.isInstalled("clipper"))
@@ -1056,6 +1092,40 @@ IOS.register({
       btw: () => line("I use Arch btw. (You had to ask?)"),
       exit: () => { line("logout"); setTimeout(() => IOS.goHome(), 400); },
       clear: () => { out.innerHTML = ""; },
+      date: () => line(new Date().toString()),
+      history: () => HIST.slice(-15).forEach((c, i) => line("  " + (HIST.length - Math.min(15, HIST.length) + i + 1) + "  " + c)),
+      free: async () => {
+        const si = await sysinfo();
+        if (si && si.free) si.free.split("\n").forEach(l => line(l));
+        else lines([["", "               total   used   free"], ["", "Mem:           1024M   512M   512M"],
+                    ["", "Swap:             0B     0B     0B  (real numbers on real hardware)"]]);
+      },
+      df: async () => {
+        const si = await sysinfo();
+        if (si && si.df) si.df.split("\n").forEach(l => line(l));
+        else lines([["", "Filesystem   Size  Used Avail Use% Mounted on"], ["", "/dev/vda      16G  2.1G   14G  14% /"]]);
+      },
+      ps: async () => {
+        const si = await sysinfo();
+        if (si && si.ps) si.ps.split("\n").forEach(l => line(l));
+        else lines([["", "  PID CMD"], ["", "    1 systemd"], ["", "  128 ios6d"], ["", "  201 cage"],
+                    ["", "  202 chromium --kiosk"], ["", "  424 the-concept-of-linen"]]);
+      },
+      htop: () => {
+        const rows = ["cpu0", "cpu1", "mem "];
+        const hEls = rows.map(r => line(""));
+        let ticks = 0;
+        const iv = setInterval(() => {
+          ticks++;
+          hEls.forEach((el, i) => {
+            const p = Math.random() * (i === 2 ? 0.55 : 0.9) + 0.05;
+            const bars = Math.round(p * 24);
+            el.textContent = rows[i] + " [" + "|".repeat(bars).padEnd(24) + "] " + Math.round(p * 100) + "%";
+            el.className = "t-ok";
+          });
+          if (ticks >= 6) { clearInterval(iv); line("htop: press nothing to quit (it quits itself, phone edition)"); }
+        }, 450);
+      },
       fortune: () => hasPkg("fortune")
         ? line(FORTUNES[Math.floor(Math.random() * FORTUNES.length)])
         : line("bash: fortune: command not found (pacman -S fortune)"),
@@ -1075,32 +1145,89 @@ IOS.register({
       d.append(caret);
       cur = "";
     }
+    const HIST = [];
+    let histIdx = -1;
+
+    async function sysinfo() {
+      if (!NativeBridge.active) return null;
+      try { return await fetch("http://127.0.0.1:9641/sysinfo").then(r => r.json()); }
+      catch (e) { return null; }
+    }
+
+    async function runCmd(raw, sudoDepth = 0) {
+      const c = raw.toLowerCase().replace(/\s+/g, " ");
+      const argv = raw.split(/\s+/);
+      const cmd0 = argv[0].toLowerCase();
+      if (cmd0 === "pacman") {
+        const args = argv.slice(1).map(a => a.startsWith("-") ? a : a.toLowerCase());
+        await pacmanCmd(args);
+      } else if (cmd0 === "sudo") {
+        line(sudoDepth ? "sudo: yes, still root" : "[sudo] you are already root. running it anyway, for the ritual:");
+        const rest = argv.slice(1).join(" ");
+        if (rest && sudoDepth < 2) await runCmd(rest, sudoDepth + 1);
+      } else if (cmd0 === "echo") {
+        line(argv.slice(1).join(" "));
+      } else if (cmd0 === "curl") {
+        const url0 = argv.slice(1).find(a => !a.startsWith("-")) || "";
+        if (!url0) return line("usage: curl <url>");
+        const url = /^https?:\/\//.test(url0) ? url0 : "https://" + url0;
+        line("* connecting to " + url + " ...");
+        const t0 = performance.now();
+        try {
+          const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          const body = await r.text();
+          line("* HTTP " + r.status + " · " + Math.round(performance.now() - t0) + "ms · " + body.length + " bytes", "t-ok");
+          body.slice(0, 280).split("\n").slice(0, 6).forEach(l => line(l));
+          if (body.length > 280) line("… (truncated — it's a phone)");
+        } catch (e) {
+          try {
+            await fetch(url, { mode: "no-cors", signal: AbortSignal.timeout(8000) });
+            line("* reachable in " + Math.round(performance.now() - t0) + "ms — but the site sends no CORS headers, so the body is classified", "t-ok");
+          } catch (e2) {
+            line("curl: (7) couldn't connect — offline, blocked, or the site is having a decade");
+          }
+        }
+      } else if (cmd0 === "ping") {
+        const host0 = argv[1];
+        if (!host0) return line("usage: ping <host>");
+        const url = "https://" + host0.replace(/^https?:\/\//, "").split("/")[0];
+        line("PING " + host0 + " (over HTTPS, ICMP is for computers):");
+        let ok = 0;
+        for (let i = 1; i <= 3; i++) {
+          const t0 = performance.now();
+          try {
+            await fetch(url, { mode: "no-cors", signal: AbortSignal.timeout(5000) });
+            line("reply seq=" + i + " time=" + Math.round(performance.now() - t0) + "ms");
+            ok++;
+          } catch (e) { line("request timeout seq=" + i); }
+        }
+        line("--- " + host0 + ": " + ok + "/3 received ---", ok ? "t-ok" : "");
+      } else if (cmd0 === "cowsay") {
+        if (hasPkg("cowsay")) cowsay(argv.slice(1).join(" "));
+        else line("bash: cowsay: command not found (pacman -S cowsay)");
+      } else if (cmd0 === "figlet") {
+        if (hasPkg("figlet")) {
+          const msg = (argv.slice(1).join(" ") || "ARCH").toUpperCase().slice(0, 8);
+          lines([["t-arch", "  _  " .repeat(msg.length)],
+                 ["t-arch", msg.split("").map(ch => " " + ch + "  ").join(" ")],
+                 ["t-arch", " (big letters simulated — it's a phone)"]]);
+        } else line("bash: figlet: command not found (pacman -S figlet)");
+      } else {
+        const fn = CMDS[c] || CMDS[cmd0];
+        if (fn) await fn();
+        else line("bash: " + raw + ": command not found (have you tried the wiki?)");
+      }
+      return c;
+    }
+
     async function exec() {
       const raw = cur.trim();
-      const c = raw.toLowerCase().replace(/\s+/g, " ");
       out.querySelectorAll(".term-caret").forEach(x => x.remove());
-      if (c) {
-        const argv = raw.split(/\s+/);
-        const cmd0 = argv[0].toLowerCase();
-        if (cmd0 === "pacman") {
-          // preserve flag case (-S vs -Ss), lowercase package names
-          const args = argv.slice(1).map((a, i) => a.startsWith("-") ? a : a.toLowerCase());
-          await pacmanCmd(args);
-        } else if (cmd0 === "cowsay") {
-          if (hasPkg("cowsay")) cowsay(argv.slice(1).join(" "));
-          else line("bash: cowsay: command not found (pacman -S cowsay)");
-        } else if (cmd0 === "figlet") {
-          if (hasPkg("figlet")) {
-            const msg = (argv.slice(1).join(" ") || "ARCH").toUpperCase().slice(0, 8);
-            lines([["t-arch", "  _  " .repeat(msg.length)],
-                   ["t-arch", msg.split("").map(ch => " " + ch + "  ").join(" ")],
-                   ["t-arch", " (big letters simulated — it's a phone)"]]);
-          } else line("bash: figlet: command not found (pacman -S figlet)");
-        } else {
-          const fn = CMDS[c] || CMDS[cmd0];
-          if (fn) await fn();
-          else line("bash: " + raw + ": command not found (have you tried the wiki?)");
-        }
+      let c = "";
+      if (raw) {
+        HIST.push(raw);
+        histIdx = HIST.length;
+        c = await runCmd(raw);
       }
       if (c === "clear") { newPrompt(); return; }
       newPrompt();
@@ -1116,11 +1243,14 @@ IOS.register({
     out.addEventListener("click", () => { KB.open(field); });
 
     // physical keyboard works even with the on-screen keyboard hidden
+    const setLine = v => { field.value = v; cur = v; if (cmdSpan) cmdSpan.textContent = v; };
     def._kh = e => {
       if (KB.visible) return; // KB routes hardware keys itself when open
       if (e.key === "Enter") { e.preventDefault(); exec(); field.value = ""; cur = ""; }
-      else if (e.key === "Backspace") { e.preventDefault(); field.value = field.value.slice(0, -1); cur = field.value; if (cmdSpan) cmdSpan.textContent = cur; }
-      else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) { e.preventDefault(); field.value += e.key; cur = field.value; if (cmdSpan) cmdSpan.textContent = cur; }
+      else if (e.key === "Backspace") { e.preventDefault(); setLine(field.value.slice(0, -1)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); if (histIdx > 0) setLine(HIST[--histIdx]); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setLine(histIdx < HIST.length - 1 ? HIST[++histIdx] : (histIdx = HIST.length, "")); }
+      else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) { e.preventDefault(); setLine(field.value + e.key); }
     };
     document.addEventListener("keydown", def._kh);
 

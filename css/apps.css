@@ -226,7 +226,8 @@
 }
 .saf-bars .kb-field { flex: 1.6; border-radius: 7px; font-size: 13px; }
 .saf-bars .kb-field.search { flex: 1; border-radius: 13px; }
-.saf-page { flex: 1; overflow-y: auto; background: #fff; }
+.saf-page { flex: 1; overflow-y: auto; background: #fff; position: relative; }
+.saf-frame { width: 100%; height: 100%; border: none; display: block; background: #fff; }
 .web { padding: 0; font-weight: 400; -webkit-user-select: text; user-select: text; }
 .web a { color: #1b53c4; text-decoration: underline; cursor: pointer; }
 .web .site-hero { padding: 26px 18px; text-align: center; color: #fff; }
@@ -296,7 +297,10 @@
 .wx-row:last-child { border-bottom: none; }
 .wx-row .d { flex: 1; }
 .wx-row .lo { color: #b9d2ef; font-weight: normal; }
-.wx-foot { text-align: center; margin-top: 14px; font-size: 11px; color: #9dbede; }
+.wx-foot { text-align: center; margin-top: 14px; font-size: 11px; color: #9dbede; padding: 0 14px; }
+.wx-viewport { flex: 1; overflow: hidden; }
+.wx-pages { display: flex; height: 100%; transition: transform .3s cubic-bezier(.25,.6,.3,1); touch-action: none; }
+.wx-page { flex: 0 0 320px; overflow-y: auto; padding-bottom: 8px; }
 
 /* ================= Notes ================= */
 

@@ -641,34 +641,85 @@ IOS.register({
   statusbar: "black",
   rootClass: "weather-root",
   render(root) {
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const today = new Date().getDay();
-    const fx = [["wsun", 75, 58], ["wpartly", 72, 57], ["wsun", 78, 60], ["wrain", 66, 55], ["wstorm", 64, 54], ["wpartly", 70, 56]];
-    root.classList.add("weather-root");
-    root.append(
-      h("div", "wx-city", "Cupertino"),
-      h("div", "wx-cond", "Sunny"),
-      h("div", "wx-now", h("span", { class: "wx-icon-big", html: Glyphs.wsun() }), h("span", "wx-big", "73°")),
-      h("div", "wx-hl", "H: 75°  L: 58°"),
-      h("div", "wx-week", fx.map(([ico, hi, lo], i) =>
-        h("div", "wx-row",
-          h("span", "d", i === 0 ? "Today" : days[(today + i) % 7]),
-          h("span", { class: "w-i", html: Glyphs[ico]() }),
-          h("span", null, hi + "°"),
-          h("span", "lo", lo + "°")))),
-      h("div", "wx-foot", "Updated " + fmtTime(new Date()) + " — forecast lovingly hard-coded"));
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const CITIES = [
+      { name: "Cupertino", lat: 37.32, lon: -122.03 },
+      { name: "Berlin", lat: 52.52, lon: 13.41 },
+      { name: "Tokyo", lat: 35.68, lon: 139.69 }
+    ];
+    // WMO weather codes -> our drawn condition glyphs + a label
+    const wmo = code =>
+      code === 0 ? ["wsun", "Clear"] :
+      code <= 2 ? ["wpartly", "Partly Cloudy"] :
+      code === 3 ? ["wpartly", "Overcast"] :
+      code < 50 ? ["wpartly", "Fog"] :
+      code < 70 ? ["wrain", "Rain"] :
+      code < 80 ? ["wrain", "Snow"] :
+      code < 95 ? ["wrain", "Showers"] : ["wstorm", "Thunderstorm"];
+    const F = c => Math.round(c * 9 / 5 + 32);
 
-    // on a networked device, swap in the real current temperature
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=37.32&longitude=-122.03&current_weather=true")
-      .then(r => r.json())
-      .then(d => {
-        const cw = d && d.current_weather;
-        if (!cw) return;
-        root.querySelector(".wx-big").textContent = Math.round(cw.temperature * 9 / 5 + 32) + "°";
-        root.querySelector(".wx-foot").textContent =
-          "Updated " + fmtTime(new Date()) + " — live via open-meteo (wind " + Math.round(cw.windspeed) + " km/h)";
-      })
-      .catch(() => { /* offline or blocked — the hard-coded sunshine stands */ });
+    const pages = h("div", "wx-pages");
+    const dots = h("div", { id: "wx-dots", style: { display: "flex", justifyContent: "center", gap: "8px", padding: "8px 0" } });
+    let cur = 0;
+    function snap() {
+      pages.style.transform = `translateX(${-cur * 320}px)`;
+      [...dots.children].forEach((d, i) => d.style.background = i === cur ? "#fff" : "rgba(255,255,255,.35)");
+    }
+
+    function cityPage(city) {
+      const el = h("div", "wx-page");
+      // seed with plausible numbers immediately; live data replaces them
+      const seedFx = [["wsun", 75, 58], ["wpartly", 72, 57], ["wsun", 78, 60], ["wrain", 66, 55], ["wstorm", 64, 54], ["wpartly", 70, 56]];
+      function paint(fx, nowT, cond, foot) {
+        el.innerHTML = "";
+        const todayIdx = new Date().getDay();
+        el.append(
+          h("div", "wx-city", city.name),
+          h("div", "wx-cond", cond),
+          h("div", "wx-now", h("span", { class: "wx-icon-big", html: Glyphs[fx[0][0]]() }), h("span", "wx-big", nowT + "°")),
+          h("div", "wx-hl", "H: " + fx[0][1] + "°  L: " + fx[0][2] + "°"),
+          h("div", "wx-week", fx.map(([ico, hi, lo], i) =>
+            h("div", "wx-row",
+              h("span", "d", i === 0 ? "Today" : DAYS[(todayIdx + i) % 7]),
+              h("span", { class: "w-i", html: Glyphs[ico]() }),
+              h("span", null, hi + "°"),
+              h("span", "lo", lo + "°")))),
+          h("div", "wx-foot", foot));
+      }
+      paint(seedFx, 73, "Sunny", "offline forecast — goes live when the device has internet");
+
+      fetch("https://api.open-meteo.com/v1/forecast?latitude=" + city.lat + "&longitude=" + city.lon +
+            "&current_weather=true&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto")
+        .then(r => r.json())
+        .then(d => {
+          if (!d || !d.daily || !d.current_weather) return;
+          const fx = d.daily.time.slice(0, 6).map((_, i) =>
+            [wmo(d.daily.weather_code[i])[0], F(d.daily.temperature_2m_max[i]), F(d.daily.temperature_2m_min[i])]);
+          paint(fx, F(d.current_weather.temperature), wmo(d.current_weather.weathercode)[1],
+            "live · open-meteo · wind " + Math.round(d.current_weather.windspeed) + " km/h · updated " + fmtTime(new Date()));
+        })
+        .catch(() => { /* stay on the seed forecast */ });
+      return el;
+    }
+
+    CITIES.forEach((c, i) => {
+      pages.append(cityPage(c));
+      dots.append(h("i", { style: { width: "7px", height: "7px", borderRadius: "50%", background: "rgba(255,255,255,.35)" } }));
+    });
+
+    // swipe between cities
+    let x0 = null, dx = 0;
+    root.addEventListener("pointerdown", e => { x0 = e.clientX; dx = 0; });
+    root.addEventListener("pointermove", e => { if (x0 !== null) dx = e.clientX - x0; });
+    root.addEventListener("pointerup", () => {
+      if (x0 === null) return;
+      if (dx < -50 && cur < CITIES.length - 1) cur++;
+      else if (dx > 50 && cur > 0) cur--;
+      snap(); x0 = null;
+    });
+
+    root.append(h("div", "wx-viewport", pages), dots);
+    snap();
   }
 });
 
@@ -711,13 +762,23 @@ IOS.register({
       ]);
     }
 
+    let pctMode = Prefs.get("stocksPct", false);
     function paintRows() {
       rows.innerHTML = "";
       STOCKS.forEach((s, i) => {
+        const chg = h("div", "stk-chg " + (s.chg >= 0 ? "up" : "down"),
+          pctMode
+            ? (s.chg >= 0 ? "+" : "") + (s.chg / Math.max(1, s.price - s.chg) * 100).toFixed(2) + "%"
+            : (s.chg >= 0 ? "+" : "") + s.chg.toFixed(2));
+        // the classic iOS 6 move: tapping the badge flips $ <-> %
+        chg.addEventListener("click", e => {
+          e.stopPropagation(); Snd.click();
+          pctMode = !pctMode; Prefs.set("stocksPct", pctMode); paintRows();
+        });
         const r = h("div", "stk-row",
           h("div", "stk-sym", h("b", null, s.sym), h("span", null, s.name)),
           h("div", "stk-price", s.price.toFixed(2)),
-          h("div", "stk-chg " + (s.chg >= 0 ? "up" : "down"), (s.chg >= 0 ? "+" : "") + s.chg.toFixed(2)));
+          chg);
         r.addEventListener("click", () => { Snd.click(); selected = i; paintChart(); });
         let lp = null;
         r.addEventListener("pointerdown", () => { lp = setTimeout(() => detail(i), 550); });
