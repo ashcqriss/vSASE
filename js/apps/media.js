@@ -54,15 +54,30 @@ IOS.register({
 });
 
 /* =================================================================
-   Camera
+   Camera — real camera + video recording when hardware allows
    ================================================================= */
+
+/* recorded clips live for the session (blob URLs don't persist) */
+const ClipStore = (() => {
+  const clips = []; // {name, dur, url, thumb}
+  return {
+    all: () => clips,
+    add: c => { clips.unshift(c); return c; },
+    count: () => clips.length
+  };
+})();
 
 IOS.register({
   id: "camera",
   name: "Camera",
   icon: Icons.camera,
   statusbar: "black",
-  onClose() { clearInterval(this._iv); },
+  onClose() {
+    clearInterval(this._iv); clearInterval(this._recIv);
+    if (this._rec && this._rec.state === "recording") { try { this._rec.stop(); } catch (e) { /* done */ } }
+    if (this._stream) this._stream.getTracks().forEach(t => t.stop());
+    this._rec = this._stream = null;
+  },
   render(root) {
     const def = IOS.app("camera");
     const scene = h("canvas", { class: "cam-scene", width: 320, height: 400 });
@@ -97,28 +112,130 @@ IOS.register({
     def._iv = setInterval(drawScene, 50);
     drawScene();
 
+    /* ---- try the real camera; the canvas scene is the fallback ---- */
+    const videoEl = h("video", { class: "cam-scene", autoplay: "", playsinline: "" });
+    videoEl.muted = true;
+    let usingReal = false, facing = "environment";
+    let recordMode = false, recording = false, recSecs = 0, chunks = [];
+
+    async function openCamera() {
+      if (def._stream) def._stream.getTracks().forEach(tr => tr.stop());
+      // prefer the requested facing, but accept any camera before giving up —
+      // many webcams advertise no facingMode at all
+      const attempts = [
+        { video: { facingMode: { ideal: facing } }, audio: recordMode },
+        { video: true, audio: recordMode },
+        { video: true, audio: false }
+      ];
+      for (const constraints of attempts) {
+        try {
+          def._stream = await navigator.mediaDevices.getUserMedia(constraints);
+          videoEl.srcObject = def._stream;
+          usingReal = true;
+          scene.style.display = "none";
+          videoEl.style.display = "block";
+          return;
+        } catch (e) { /* try the next constraint set */ }
+      }
+      usingReal = false;
+      videoEl.style.display = "none";
+      scene.style.display = "block";
+    }
+
+    /* current frame (real camera or scene) as a 320x400 canvas */
+    function frameCanvas() {
+      const c = document.createElement("canvas");
+      c.width = 320; c.height = 400;
+      const cg = c.getContext("2d");
+      if (usingReal && videoEl.videoWidth) {
+        const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+        const s = Math.max(320 / vw, 400 / vh);
+        cg.drawImage(videoEl, (320 - vw * s) / 2, (400 - vh * s) / 2, vw * s, vh * s);
+      } else cg.drawImage(scene, 0, 0);
+      return c;
+    }
+
     const iris = h("div", "cam-iris");
     const thumb = h("div", "cam-thumb");
-    const last = PhotoStore.get(PhotoStore.count() - 1);
-    thumb.append(h("img", { src: last }));
-    thumb.addEventListener("click", () => IOS.open("photos"));
+    thumb.append(h("img", { src: PhotoStore.get(PhotoStore.count() - 1) }));
+    thumb.addEventListener("click", () => IOS.open(recordMode ? "videos" : "photos"));
 
+    const recDot = h("div", "cam-recdot hidden", h("i"), h("span", null, "00:00"));
     const shutter = h("div", { class: "cam-shutter", html: Glyphs.camera() });
+
+    const modeSw = h("div", { class: "cam-mode", html:
+      `<span class="cm-still">${Glyphs.camera()}</span><span class="cm-vid">${Glyphs.video()}</span>` });
+    modeSw.addEventListener("click", () => {
+      if (recording) return;
+      Snd.click();
+      recordMode = !recordMode;
+      modeSw.classList.toggle("video", recordMode);
+      shutter.classList.toggle("rec", recordMode);
+      shutter.innerHTML = recordMode ? '<i class="cam-recbtn"></i>' : Glyphs.camera();
+      if (usingReal) openCamera(); // reopen with/without the audio track
+    });
+
+    function stopRecording() {
+      recording = false;
+      clearInterval(def._recIv);
+      recDot.classList.add("hidden");
+      if (def._rec && def._rec.state === "recording") def._rec.stop();
+    }
+
+    function startRecording() {
+      const src = usingReal && def._stream ? def._stream : scene.captureStream(20);
+      let rec;
+      try { rec = new MediaRecorder(src, { mimeType: "video/webm" }); }
+      catch (e) {
+        try { rec = new MediaRecorder(src); }
+        catch (e2) { return showAlert({ title: "Camera", text: "Video recording is not supported in this browser." }); }
+      }
+      def._rec = rec;
+      chunks = []; recSecs = 0; recording = true;
+      const thumbUrl = frameCanvas().toDataURL("image/jpeg", 0.7);
+      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        const dur = String(Math.floor(recSecs / 60)).padStart(2, "0") + ":" + String(recSecs % 60).padStart(2, "0");
+        const url = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+        ClipStore.add({ name: "Video " + (ClipStore.count() + 1), dur, url, thumb: thumbUrl,
+                        source: usingReal ? "camera" : "scene" });
+        thumb.innerHTML = ""; thumb.append(h("img", { src: thumbUrl }));
+        Snd.received();
+      };
+      rec.start(250);
+      recDot.classList.remove("hidden");
+      def._recIv = setInterval(() => {
+        recSecs++;
+        recDot.querySelector("span").textContent =
+          String(Math.floor(recSecs / 60)).padStart(2, "0") + ":" + String(recSecs % 60).padStart(2, "0");
+      }, 1000);
+    }
+
     shutter.addEventListener("click", () => {
       Snd.key();
+      if (recordMode) { recording ? stopRecording() : startRecording(); return; }
       iris.classList.add("snap");
       setTimeout(() => {
-        const url = scene.toDataURL("image/jpeg", 0.85);
-        PhotoStore.add(url);
+        PhotoStore.add(frameCanvas().toDataURL("image/jpeg", 0.85));
         thumb.innerHTML = "";
-        thumb.append(h("img", { src: url }));
+        thumb.append(h("img", { src: PhotoStore.get(PhotoStore.count() - 1) }));
         iris.classList.remove("snap");
       }, 300);
     });
 
+    const flip = h("div", { class: "cam-flip", html: Glyphs.flip() });
+    flip.addEventListener("click", () => {
+      Snd.click();
+      if (!usingReal || recording) return;
+      facing = facing === "environment" ? "user" : "environment";
+      openCamera();
+    });
+
     root.append(
-      h("div", "cam-finder", scene, h("div", "cam-reticle"), iris),
-      h("div", "cam-bar", thumb, shutter, h("div", { class: "cam-flip", html: Glyphs.flip() })));
+      h("div", "cam-finder", scene, videoEl, h("div", "cam-reticle"), recDot, iris),
+      h("div", "cam-bar", thumb, shutter,
+        h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" } }, flip, modeSw)));
+    openCamera();
   }
 });
 
@@ -414,11 +531,48 @@ IOS.register({
       def._raf = requestAnimationFrame(loop);
     }
 
+    /* recorded clips from the Camera play in a real <video> element */
+    function clipPlayer(clip) {
+      const v = h("video", { src: clip.url, style: { width: "100%", background: "#000" } });
+      v.muted = true;
+      const bar = h("i");
+      const playBtn = h("span", { class: "tb-ico", html: Glyphs.pause() });
+      v.addEventListener("timeupdate", () => {
+        if (v.duration && isFinite(v.duration)) bar.style.width = (v.currentTime / v.duration * 100) + "%";
+      });
+      v.addEventListener("ended", () => { playBtn.innerHTML = Glyphs.play(); bar.style.width = "100%"; });
+      playBtn.addEventListener("click", () => {
+        Snd.click();
+        if (v.paused) { v.play(); playBtn.innerHTML = Glyphs.pause(); }
+        else { v.pause(); playBtn.innerHTML = Glyphs.play(); }
+      });
+      nav.push(navView(
+        navbar(clip.name, { dark: true, left: backBtn("Videos", () => { v.pause(); nav.pop(); }) }),
+        h("div", { style: { flex: "1", background: "#000", display: "flex", alignItems: "center" } }, v),
+        h("div", "toolbar", playBtn,
+          h("div", { class: "music-progress", style: { flex: "1", margin: "0 10px" } }, h("div", "bar", bar)))));
+      v.play().catch(() => { playBtn.innerHTML = Glyphs.play(); });
+    }
+
     const list = h("div", "content list");
-    FILMS.forEach(f => list.append(h("div", { class: "store-row", onclick: () => { Snd.click(); player(f); } },
-      h("div", { class: "store-app-ico", style: { background: f.color }, html: Glyphs.play() }),
-      h("div", "store-info", h("b", null, f.name), h("span", null, f.dur + " · procedurally generated · HD-ish")))));
+    function paintList() {
+      list.innerHTML = "";
+      if (ClipStore.count()) {
+        list.append(h("div", "ct-sec", "Camera Roll"));
+        ClipStore.all().forEach(c => list.append(h("div", { class: "store-row", onclick: () => { Snd.click(); clipPlayer(c); } },
+          h("img", { src: c.thumb, style: { width: "50px", height: "50px", objectFit: "cover", borderRadius: "8px", flex: "0 0 50px" } }),
+          h("div", "store-info", h("b", null, c.name),
+            h("span", null, c.dur + (c.source === "camera" ? " · recorded with the camera" : " · recorded from the viewfinder"))))));
+      }
+      list.append(h("div", "ct-sec", "Films"));
+      FILMS.forEach(f => list.append(h("div", { class: "store-row", onclick: () => { Snd.click(); player(f); } },
+        h("div", { class: "store-app-ico", style: { background: f.color }, html: Glyphs.play() }),
+        h("div", "store-info", h("b", null, f.name), h("span", null, f.dur + " · procedurally generated · HD-ish")))));
+      if (!ClipStore.count())
+        list.append(h("div", "group-foot", "Record your own: Camera → flip the little switch to video mode. Clips live until reboot."));
+    }
     nav.push(navView(navbar("Videos"), list), false);
+    paintList();
   }
 });
 
