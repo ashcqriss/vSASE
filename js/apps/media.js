@@ -133,50 +133,86 @@ IOS.register({
   statusbar: "black",
   onClose() { MusicPlayer.stop(); },
   render(root) {
-    const art = h("div", "music-art");
-    const artCanvas = h("canvas", { width: 232, height: 232, style: { width: "100%", height: "100%" } });
-    const ag = artCanvas.getContext("2d");
-    const grad = ag.createLinearGradient(0, 0, 232, 232);
-    grad.addColorStop(0, "#1793d1"); grad.addColorStop(1, "#0a2a45");
-    ag.fillStyle = grad; ag.fillRect(0, 0, 232, 232);
-    ag.fillStyle = "rgba(255,255,255,.92)";
-    ag.beginPath(); ag.moveTo(116, 40); ag.lineTo(176, 150); ag.lineTo(146, 150);
-    ag.lineTo(116, 92); ag.lineTo(86, 150); ag.lineTo(56, 150); ag.closePath(); ag.fill();
-    ag.font = "bold 17px Helvetica"; ag.textAlign = "center";
-    ag.fillText("KERNEL PANIC", 116, 190);
-    ag.font = "11px Helvetica"; ag.fillText("· the daemons ·", 116, 208);
-    art.append(artCanvas);
+    const nav = new UINav(root);
 
-    const bar = h("i");
-    const elapsed = h("span", null, "0:00");
-    const playBtn = h("span", { html: Glyphs.play() });
-    playBtn.addEventListener("click", () => {
-      if (MusicPlayer.playing) { MusicPlayer.stop(); playBtn.innerHTML = Glyphs.play(); }
-      else { MusicPlayer.play(p => { bar.style.width = (p.frac * 100) + "%"; elapsed.textContent = p.time; }, () => { playBtn.innerHTML = Glyphs.play(); }); playBtn.innerHTML = Glyphs.pause(); }
-      Snd.click();
-    });
+    function artFor(tr) {
+      const art = h("div", "music-art");
+      const c = h("canvas", { width: 232, height: 232, style: { width: "100%", height: "100%" } });
+      const g = c.getContext("2d");
+      const grad = g.createLinearGradient(0, 0, 232, 232);
+      grad.addColorStop(0, tr.hue); grad.addColorStop(1, "#10141c");
+      g.fillStyle = grad; g.fillRect(0, 0, 232, 232);
+      g.fillStyle = "rgba(255,255,255,.92)";
+      g.beginPath(); g.moveTo(116, 40); g.lineTo(176, 150); g.lineTo(146, 150);
+      g.lineTo(116, 92); g.lineTo(86, 150); g.lineTo(56, 150); g.closePath(); g.fill();
+      g.font = "bold 15px Helvetica"; g.textAlign = "center";
+      g.fillText(tr.artist.toUpperCase(), 116, 190);
+      g.font = "11px Helvetica"; g.fillText("· " + tr.title + " ·", 116, 208);
+      art.append(c);
+      return art;
+    }
 
-    root.append(
-      navbar("Now Playing", { dark: true, left: backBtn("Library", () => {}), right: navBtn("≣", () => {}) }),
-      h("div", "music-np",
-        art,
-        h("div", "music-track", h("b", null, "Daemons in the Initramfs"), h("span", null, "Kernel Panic — Rolling Release (2012)")),
-        h("div", "music-progress", elapsed, h("div", "bar", bar), h("span", null, "0:16")),
-        h("div", "music-ctrls",
-          h("span", { onclick: () => Snd.click(), html: Glyphs.prev() }), playBtn,
-          h("span", { onclick: () => Snd.click(), html: Glyphs.next() })),
-        h("div", "music-vol", slider(70, () => {}))));
+    function nowPlaying(idx) {
+      const tr = TRACKS[idx];
+      const bar = h("i");
+      const elapsed = h("span", null, "0:00");
+      const playBtn = h("span", { html: Glyphs.pause() });
+      const start = () => MusicPlayer.play(idx,
+        p => { bar.style.width = (p.frac * 100) + "%"; elapsed.textContent = p.time; },
+        () => { playBtn.innerHTML = Glyphs.play(); });
+      playBtn.addEventListener("click", () => {
+        Snd.click();
+        if (MusicPlayer.playing) { MusicPlayer.stop(); playBtn.innerHTML = Glyphs.play(); }
+        else { start(); playBtn.innerHTML = Glyphs.pause(); }
+      });
+      const jump = d => { nav.pop(); openTrack((idx + d + TRACKS.length) % TRACKS.length); };
+      const view = navView(
+        navbar("Now Playing", { dark: true, left: backBtn("Library", () => { MusicPlayer.stop(); nav.pop(); }) }),
+        h("div", "music-np",
+          artFor(tr),
+          h("div", "music-track", h("b", null, tr.title), h("span", null, tr.artist + " — " + tr.album)),
+          h("div", "music-progress", elapsed, h("div", "bar", bar), h("span", null, "0:16")),
+          h("div", "music-ctrls",
+            h("span", { onclick: () => { Snd.click(); jump(-1); }, html: Glyphs.prev() }), playBtn,
+            h("span", { onclick: () => { Snd.click(); jump(1); }, html: Glyphs.next() }),
+          ),
+          h("div", "music-vol", slider(70, () => {}))));
+      nav.push(view);
+      start();
+    }
+    function openTrack(idx) { nowPlaying(idx); }
+
+    const list = h("div", "content list");
+    TRACKS.forEach((tr, i) => list.append(cell({
+      label: tr.title, sub: tr.artist + " — " + tr.album, chev: true,
+      onTap: () => openTrack(i)
+    })));
+    list.append(h("div", "group-foot", TRACKS.length + " songs, all synthesized on-device. The loudness war is over; the sine wave won."));
+    nav.push(navView(navbar("Music", { dark: true }), list), false);
   }
 });
 
-/* a tiny generative chiptune so Play actually plays something */
-const MusicPlayer = (() => {
-  let ctx = null, nodes = [], timer = null, playing = false, t0 = 0;
-  const MELODY = [0, 3, 5, 7, 5, 3, 0, -2, 0, 3, 7, 10, 7, 5, 3, 5];
-  const BASE = 220;
-  const DUR = 16; // seconds
+/* a tiny generative chiptune engine — every track is synthesized, original */
+const TRACKS = [
+  { title: "Daemons in the Initramfs", artist: "Kernel Panic", album: "Rolling Release (2012)",
+    base: 220, wave: "square", step: 0.5, hue: "#1793d1",
+    pattern: [0, 3, 5, 7, 5, 3, 0, -2, 0, 3, 7, 10, 7, 5, 3, 5] },
+  { title: "Slide to Funk", artist: "The Skeuomorphs", album: "Linen Nights (2012)",
+    base: 174.6, wave: "sawtooth", step: 0.38, hue: "#d17a17",
+    pattern: [0, 0, 7, 0, 5, 3, 5, 7, 0, 0, 10, 8, 7, 5, 3, 0] },
+  { title: "Felt & Leather", artist: "Cupertino Sunset", album: "Textures (2012)",
+    base: 196, wave: "triangle", step: 0.62, hue: "#7a4dbb",
+    pattern: [0, 4, 7, 12, 7, 4, 0, 4, 5, 9, 12, 9, 5, 2, 4, 0] }
+];
 
-  function play(onTick, onEnd) {
+const MusicPlayer = (() => {
+  let ctx = null, nodes = [], timer = null, playing = false, t0 = 0, current = 0;
+  const DUR = 16;
+
+  function play(trackIdx, onTick, onEnd) {
+    stop();
+    current = trackIdx;
+    const tr = TRACKS[trackIdx];
     try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     if (ctx.state === "suspended") ctx.resume();
     playing = true;
@@ -185,24 +221,25 @@ const MusicPlayer = (() => {
     master.gain.value = 0.08;
     master.connect(ctx.destination);
     nodes = [master];
-    MELODY.forEach((semi, i) => {
-      for (let rep = 0; rep < 2; rep++) {
-        const start = t0 + i * 0.5 + rep * 8;
+    const reps = Math.ceil(DUR / (tr.pattern.length * tr.step));
+    tr.pattern.forEach((semi, i) => {
+      for (let rep = 0; rep < reps; rep++) {
+        const start = t0 + i * tr.step + rep * tr.pattern.length * tr.step;
+        if (start - t0 > DUR) continue;
         const o = ctx.createOscillator(), gn = ctx.createGain();
-        o.type = rep ? "triangle" : "square";
-        o.frequency.value = BASE * Math.pow(2, semi / 12) * (rep ? 1 : 2);
+        o.type = rep % 2 ? "triangle" : tr.wave;
+        o.frequency.value = tr.base * Math.pow(2, semi / 12) * (rep % 2 ? 1 : 2);
         gn.gain.setValueAtTime(0.9, start);
-        gn.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
+        gn.gain.exponentialRampToValueAtTime(0.001, start + tr.step * 0.9);
         o.connect(gn).connect(master);
-        o.start(start); o.stop(start + 0.5);
+        o.start(start); o.stop(start + tr.step);
         nodes.push(o);
       }
     });
     timer = setInterval(() => {
       const el = ctx.currentTime - t0;
       if (el >= DUR) { stop(); onEnd && onEnd(); return; }
-      const m = Math.floor(el / 60), s = Math.floor(el % 60);
-      onTick && onTick({ frac: el / DUR, time: m + ":" + String(s).padStart(2, "0") });
+      onTick && onTick({ frac: el / DUR, time: Math.floor(el / 60) + ":" + String(Math.floor(el % 60)).padStart(2, "0") });
     }, 200);
   }
   function stop() {
@@ -211,7 +248,7 @@ const MusicPlayer = (() => {
     nodes.forEach(n => { try { n.stop ? n.stop() : n.disconnect(); } catch (e) { /* done */ } });
     nodes = [];
   }
-  return { play, stop, get playing() { return playing; } };
+  return { play, stop, get playing() { return playing; }, get current() { return current; } };
 })();
 
 /* =================================================================
@@ -299,23 +336,83 @@ IOS.register({
   name: "Videos",
   icon: Icons.videos,
   statusbar: "blue",
+  onClose() { cancelAnimationFrame(this._raf); },
   render(root) {
-    const vids = [
-      ["WWDC 2012 Keynote", "1:56:41", "#3d5578"],
-      ["Kernel Compilation: The Movie", "4:20:00", "#1793d1"],
-      ["Skeuomorphism — A Retrospective", "42:00", "#7a5c3a"],
-      ["Slide to Unlock (Director's Cut)", "0:09", "#4a8a4a"]
+    const def = IOS.app("videos");
+    const nav = new UINav(root);
+
+    /* every "film" is a 20-second procedural canvas animation */
+    const FILMS = [
+      { name: "Keynote Rewatch (parody)", dur: "0:20", color: "#3d5578",
+        draw(g, t) {
+          g.fillStyle = "#0c0e14"; g.fillRect(0, 0, 320, 180);
+          const slides = ["A phone.", "A taller phone.", "Maps. What could go wrong?", "One more thing…", "It runs Arch now."];
+          const idx = Math.min(slides.length - 1, Math.floor(t / 4));
+          g.fillStyle = "#fff"; g.font = "bold 20px Helvetica"; g.textAlign = "center";
+          g.globalAlpha = Math.min(1, (t % 4) * 1.5);
+          g.fillText(slides[idx], 160, 95);
+          g.globalAlpha = 1;
+        } },
+      { name: "Kernel Compilation: The Movie", dur: "0:20", color: "#1793d1",
+        draw(g, t) {
+          g.fillStyle = "#000"; g.fillRect(0, 0, 320, 180);
+          g.font = "9px monospace"; g.textAlign = "left";
+          const files = ["init/main.o", "kernel/fork.o", "mm/slub.o", "drivers/gpu/drm/virtio.o",
+                        "net/ipv4/tcp.o", "fs/ext4/inode.o", "sound/marimba.o", "arch/arm64/phone.o"];
+          for (let i = 0; i < 16; i++) {
+            const n = Math.floor(t * 8) + i;
+            g.fillStyle = i === 15 ? "#57e389" : "#3f9e4f";
+            g.fillText("  CC      " + files[n % files.length], 8, 12 + i * 11);
+          }
+          if (t > 18) { g.fillStyle = "#57e389"; g.font = "bold 13px monospace"; g.fillText("Kernel: arch/boot/Image is ready", 8, 172); }
+        } },
+      { name: "Slide to Unlock (Director's Cut)", dur: "0:20", color: "#4a8a4a",
+        draw(g, t) {
+          const sky = g.createLinearGradient(0, 0, 0, 180);
+          sky.addColorStop(0, "#0a1b30"); sky.addColorStop(1, "#103455");
+          g.fillStyle = sky; g.fillRect(0, 0, 320, 180);
+          g.fillStyle = "rgba(10,12,18,.75)"; g.fillRect(60, 70, 200, 40);
+          const x = 66 + ((t * 60) % 160);
+          g.fillStyle = "#dfe3ea"; g.fillRect(x, 75, 46, 30);
+          g.fillStyle = "#7d84a0"; g.font = "20px Helvetica"; g.textAlign = "center"; g.fillText("→", x + 23, 97);
+          g.fillStyle = "rgba(220,225,235,.6)"; g.font = "300 16px Helvetica";
+          g.fillText("slide to unlock", 185, 96);
+        } }
     ];
+
+    function player(film) {
+      const c = h("canvas", { width: 320, height: 180, style: { width: "100%", background: "#000" } });
+      const g = c.getContext("2d");
+      const bar = h("i");
+      const playBtn = h("span", { class: "tb-ico", html: Glyphs.pause() });
+      let t = 0, playing = true, last = performance.now();
+      function loop(now) {
+        if (playing) {
+          t += (now - last) / 1000;
+          if (t >= 20) { t = 0; playing = false; playBtn.innerHTML = Glyphs.play(); }
+        }
+        last = now;
+        film.draw(g, t);
+        bar.style.width = (t / 20 * 100) + "%";
+        def._raf = requestAnimationFrame(loop);
+      }
+      playBtn.addEventListener("click", () => {
+        Snd.click(); playing = !playing;
+        playBtn.innerHTML = playing ? Glyphs.pause() : Glyphs.play();
+      });
+      nav.push(navView(
+        navbar(film.name, { dark: true, left: backBtn("Videos", () => { cancelAnimationFrame(def._raf); nav.pop(); }) }),
+        h("div", { style: { flex: "1", background: "#000", display: "flex", alignItems: "center" } }, c),
+        h("div", "toolbar", playBtn,
+          h("div", { class: "music-progress", style: { flex: "1", margin: "0 10px" } }, h("div", "bar", bar)))));
+      def._raf = requestAnimationFrame(loop);
+    }
+
     const list = h("div", "content list");
-    vids.forEach(([name, dur, color]) => {
-      list.append(h("div", { class: "store-row", onclick: () => {
-        Snd.click();
-        showAlert({ title: name, text: "▶ Now playing… in your imagination. (Video decoding not included, kernel module missing: imagination.ko loaded instead.)" });
-      } },
-        h("div", { class: "store-app-ico", style: { background: color }, html: Glyphs.play() }),
-        h("div", "store-info", h("b", null, name), h("span", null, dur + " · HD"))));
-    });
-    root.append(navbar("Videos", { right: navBtn("Edit", () => {}) }), list);
+    FILMS.forEach(f => list.append(h("div", { class: "store-row", onclick: () => { Snd.click(); player(f); } },
+      h("div", { class: "store-app-ico", style: { background: f.color }, html: Glyphs.play() }),
+      h("div", "store-info", h("b", null, f.name), h("span", null, f.dur + " · procedurally generated · HD-ish")))));
+    nav.push(navView(navbar("Videos"), list), false);
   }
 });
 
@@ -378,11 +475,17 @@ IOS.register({
             h("div", null, h("b", null, "42"), h("span", null, "Achievements")),
             h("div", null, h("b", null, "2"), h("span", null, "Friends")))),
         h("div", "gc-card",
-          h("h2", { style: { fontSize: "16px" } }, "Recent Games"),
+          h("h2", { style: { fontSize: "16px" } }, "Leaderboards"),
           h("div", { style: { fontSize: "13px", color: "#6a5f45", marginTop: "8px", lineHeight: "1.9" } },
+            "Angry Penguins — your best: " +
+              (Prefs.get("penguinHigh", 0) || "not played yet") +
+              (Prefs.get("penguinHigh", 0) >= 700 ? " 🏆" : ""), h("br"),
             "Chess — Zach is winning (1,240)", h("br"),
-            "Angry Penguins — 3 stars", h("br"),
-            "vimtutor speedrun — record holder"))));
+            "vimtutor speedrun — record holder"),
+          Prefs.get("penguinHigh", 0) === 0 && typeof AppMarket !== "undefined" && !AppMarket.isInstalled("penguins")
+            ? h("button", { class: "big-blue-btn", style: { marginTop: "10px" },
+                onclick: () => IOS.open("appstore") }, "Get Angry Penguins")
+            : null)));
   }
 });
 
@@ -402,10 +505,23 @@ IOS.register({
       { bg: "linear-gradient(#7a5c3a,#4a3018)", brand: "Daily Grind Coffee", big: "★ 9 of 10 stamps", sub: "Free kernel refill at 10" },
       { bg: "linear-gradient(#8a2a8a,#4a104a)", brand: "CINEMA 6", big: "The Linen Documentary", sub: "Tonight 8:00 PM · Screen 2" }
     ];
+    function openPass(p) {
+      const full = h("div", { class: "sheet-wrap", style: { alignItems: "center", padding: "16px" } },
+        h("div", { class: "pass", style: { background: p.bg, width: "100%", margin: 0, animation: "alertpop .2s ease-out" } },
+          h("div", "p-top", h("b", null, p.brand), h("span", { style: { fontSize: "11px", opacity: 0.8 } }, p.sub)),
+          h("div", "p-big", p.big),
+          h("div", { style: { padding: "0 14px 8px", fontSize: "12px", opacity: 0.85 } },
+            "Gate 6 · Boarding group ARCH · Scans anywhere that accepts imaginary barcodes."),
+          h("div", { class: "p-barcode", style: { height: "84px" } }),
+          h("button", { class: "big-blue-btn", style: { margin: "0 14px 14px", width: "calc(100% - 28px)" },
+            onclick: () => { Snd.click(); full.remove(); } }, "Done")));
+      full.addEventListener("click", e => { if (e.target === full) full.remove(); });
+      $id("screen").append(full);
+    }
     root.append(
       navbar("Passbook", { dark: true }),
       h("div", { class: "content", style: { background: "transparent" } },
-        passes.map(p => h("div", { class: "pass", style: { background: p.bg }, onclick: () => Snd.click() },
+        passes.map(p => h("div", { class: "pass", style: { background: p.bg }, onclick: () => { Snd.click(); openPass(p); } },
           h("div", "p-top", h("b", null, p.brand), h("span", { style: { fontSize: "11px", opacity: 0.8 } }, p.sub)),
           h("div", "p-big", p.big),
           h("div", "p-barcode")))));
@@ -423,15 +539,43 @@ IOS.register({
   statusbar: "black",
   rootClass: "ns-root",
   render(root) {
+    const nav = new UINav(root);
+    const ISSUES = {
+      "LINEN WEEKLY": ["The texture that held up an era",
+        ["This week we ask the question on everyone's lips: is there such a thing as too much linen?",
+         "Our panel of designers examined 47 screens and found linen on 46 of them. The 47th was leather.",
+         "Next week: felt — friend or floor covering?"]],
+      "pacman monthly": ["-Syu and you: a love story",
+        ["Readers write in to describe the moment they stopped fearing the partial upgrade and learned to read the news first.",
+         "Our centerfold this month: a mirror that is fully synced, photographed at golden hour.",
+         "Tip of the month: the wiki knew. The wiki always knew."]],
+      "Skeuomorph": ["Stitching: a retrospective",
+        ["From calendars bound in leather to shelves of virtual pine, we chart the decade when software wanted to be furniture.",
+         "An interview with the shadow under a toggle switch: 'people said I was unnecessary. I kept everything grounded.'"]],
+      "Gradient Quarterly": ["From #b2bccc to #6d84a2",
+        ["A meditation on the navigation bar: why settle for one blue when you can have four, vertically?",
+         "Field notes: gloss is not a highlight, it is a promise."]],
+      "TEXTURE": ["Green felt: the gaming issue",
+        ["Why did every game table look like a casino in 2012? We visited the fabric district to find out.",
+         "Plus: brushed metal — a eulogy, slightly reflective."]]
+    };
+    function reader(name) {
+      const [title, pars] = ISSUES[name];
+      nav.push(navView(
+        navbar(name, { dark: true, left: backBtn("Shelf", () => nav.pop()) }),
+        h("div", { class: "content", style: { padding: "14px" } },
+          h("h3", { style: { fontSize: "18px", marginBottom: "8px" } }, title),
+          pars.map(par => h("p", { style: { fontSize: "14px", lineHeight: "1.55", marginBottom: "10px", fontWeight: "400" } }, par)),
+          h("div", "group-foot", "Issue 6 · 2012 · entirely fictional"))));
+    }
     const shelf = (mags) => h("div", "ns-shelf", mags.map(([name, bg]) =>
-      h("div", { class: "ns-mag", style: { background: bg }, onclick: () =>
-        showAlert({ title: name, text: "Subscription expired in 2013. Some things are better left unrenewed." }) }, name)));
-    root.append(
+      h("div", { class: "ns-mag", style: { background: bg }, onclick: () => { Snd.click(); reader(name); } }, name)));
+    nav.push(navView(
       navbar("Newsstand", { dark: true, right: navBtn("Store", () => IOS.open("appstore")) }),
       h("div", { class: "content", style: { background: "transparent", paddingBottom: "12px" } },
         shelf([["LINEN WEEKLY", "linear-gradient(#8a8f9a,#5a5f6a)"], ["pacman monthly", "linear-gradient(#1793d1,#0a4a70)"], ["Skeuomorph", "linear-gradient(#7a5c3a,#4a3018)"]]),
         shelf([["Gradient Quarterly", "linear-gradient(#e05a8a,#8a2555)"], ["TEXTURE", "linear-gradient(#4a8a4a,#255525)"]]),
-        shelf([])));
+        shelf([]))), false);
   }
 });
 
@@ -463,29 +607,80 @@ IOS.register({
     const levels = h("div", "vm-level", Array.from({ length: 40 }, () => h("i")));
     const time = h("div", "vm-time", "00:00");
     const rec = h("div", "vm-rec", h("i"));
+    const memoList = h("div", { class: "content list", style: { flex: "0 0 120px", background: "#26262a", borderTop: "1px solid #000" } });
     let recording = false, secs = 0;
+    let recorder = null, chunks = [];
+    if (!def._memos) def._memos = []; // {name, dur, url|null}
+
+    function paintMemos() {
+      memoList.innerHTML = "";
+      if (!def._memos.length) {
+        memoList.append(h("div", { class: "empty-msg", style: { padding: "14px", color: "#8a8a90" } }, "No memos yet — tap record."));
+        return;
+      }
+      def._memos.forEach((m, i) => {
+        const row = h("div", { class: "wc-row", style: { padding: "6px 14px" } },
+          h("div", "wc-info", h("div", { class: "wc-city", style: { fontSize: "15px" } }, m.name),
+            h("div", "wc-sub", m.dur + (m.url ? " · microphone" : " · synth (no mic)"))),
+          h("span", { class: "vm-cell-play", style: { color: "#6fd76f" }, html: Glyphs.play(),
+            onclick: () => {
+              Snd.click();
+              if (m.url) new Audio(m.url).play();
+              else { Snd.tri(); }
+            } }));
+        memoList.append(row);
+      });
+    }
+
+    async function startRec() {
+      secs = 0; chunks = [];
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.start();
+      } catch (e) {
+        recorder = null; // no mic / no permission — memo becomes a synth marker
+      }
+      def._iv = setInterval(() => {
+        secs++;
+        time.textContent = String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+        [...levels.children].forEach(b => b.style.height = (3 + Math.random() * 20) + "px");
+      }, 1000);
+    }
+
+    function stopRec() {
+      clearInterval(def._iv);
+      [...levels.children].forEach(b => b.style.height = "4px");
+      const name = "New Recording " + (def._memos.length + 1);
+      const dur = time.textContent;
+      if (recorder && recorder.state === "recording") {
+        recorder.onstop = () => {
+          recorder.stream.getTracks().forEach(t => t.stop());
+          const url = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType }));
+          def._memos.unshift({ name, dur, url });
+          paintMemos();
+        };
+        recorder.stop();
+      } else {
+        def._memos.unshift({ name, dur, url: null });
+        paintMemos();
+      }
+      time.textContent = "00:00";
+    }
 
     rec.addEventListener("click", () => {
       Snd.click();
       recording = !recording;
       rec.classList.toggle("recording", recording);
-      if (recording) {
-        secs = 0;
-        def._iv = setInterval(() => {
-          secs++;
-          time.textContent = String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
-          [...levels.children].forEach(b => b.style.height = (3 + Math.random() * 20) + "px");
-        }, 250);
-      } else {
-        clearInterval(def._iv);
-        [...levels.children].forEach(b => b.style.height = "4px");
-        showAlert({ title: "Memo Saved", text: "“New Recording 1” (" + time.textContent + ") — stored securely in RAM, forever*.\n*until refresh" });
-      }
+      if (recording) startRec(); else stopRec();
     });
 
     root.append(
       h("div", "vm-mic", h("div", { class: "vm-mic-svg", html: micSvg })),
-      h("div", "vm-ctrl", rec, levels, time));
+      h("div", "vm-ctrl", rec, levels, time),
+      memoList);
+    paintMemos();
   }
 });
 
@@ -583,8 +778,90 @@ IOS.register({
     }
     function lines(arr) { arr.forEach(([cls, t]) => { const d = h("div", { class: cls }); d.textContent = t; out.append(d); }); out.scrollTop = out.scrollHeight; }
 
+    /* ---- simulated package universe (browser); real pacman via ios6d on hardware ---- */
+    const SIM_REPO = {
+      cowsay:  "a talking cow for your terminal",
+      fortune: "wisdom of questionable provenance",
+      sl:      "a steam locomotive for typos",
+      figlet:  "letters, but enormous"
+    };
+    const simPkgs = () => Prefs.get("termPkgs", []);
+    const hasPkg = n => simPkgs().includes(n);
+    const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+
+    const FORTUNES = [
+      "You will read the wiki before posting. — the wiki",
+      "A rolling release gathers no moss.",
+      "Your uptime is someone else's downtime.",
+      "He who controls the AUR controls the universe.",
+      "Reboot not into the fruit, but into the log."
+    ];
+
+    function cowsay(msg) {
+      const m = (msg || "I use Arch btw").slice(0, 34);
+      const bar = "-".repeat(m.length + 2);
+      lines([[null, " " + bar], [null, "< " + m + " >"], [null, " " + bar],
+        [null, "        \\   ^__^"], [null, "         \\  (oo)\\_______"],
+        [null, "            (__)\\       )\\/\\"], [null, "                ||----w |"],
+        [null, "                ||     ||"]].map(([c, t]) => [c || "", t]));
+    }
+
+    async function pacmanCmd(args) {
+      const native = NativeBridge.active;
+      if (args[0] === "-Syu" || args[0] === "-syu") {
+        line(":: Synchronizing package databases...");
+        if (native) {
+          line(":: Starting full system upgrade (real pacman via ios6d)...");
+          const r = await NativeBridge.pkgUpgrade();
+          (r && r.log || []).forEach(l => line(" " + l));
+          line(r && r.ok ? ":: upgrade complete" : ":: " + ((r && r.error) || "upgrade failed"), r && r.ok ? "t-ok" : "");
+        } else {
+          for (const [t, d] of [[" core is up to date", 250], [" extra is up to date", 250],
+                                [" springboard is up to date", 250], [":: Starting full system upgrade...", 350]]) {
+            await sleepMs(d); line(t);
+          }
+          await sleepMs(350); line(" there is nothing to do", "t-ok");
+        }
+      } else if (args[0] === "-S" && args[1]) {
+        const name = args[1];
+        if (native) {
+          line("resolving dependencies (real pacman via ios6d)...");
+          const r = await NativeBridge.pkgInstall(name);
+          (r && r.log || []).forEach(l => line(" " + l));
+          line(r && r.ok ? ":: installed " + name : ":: " + ((r && r.error) || "install failed"), r && r.ok ? "t-ok" : "");
+        } else if (SIM_REPO[name]) {
+          if (hasPkg(name)) return line("warning: " + name + " is up to date -- reinstalling");
+          line("resolving dependencies...");
+          await sleepMs(300); line("Packages (1) " + name + "-1.0-1");
+          await sleepMs(400); line(":: Retrieving packages... [########] 100%");
+          await sleepMs(300);
+          Prefs.set("termPkgs", [...simPkgs(), name]);
+          line(":: installed " + name + " — try running it", "t-ok");
+        } else {
+          line("error: target not found: " + name + " (sim repo has: " + Object.keys(SIM_REPO).join(", ") + ")");
+        }
+      } else if (args[0] === "-Ss" && args[1]) {
+        if (native) {
+          const r = await NativeBridge.pkgSearch(args.slice(1).join(" "));
+          const res = (r && r.results) || [];
+          if (!res.length) line("no results");
+          res.slice(0, 10).forEach(pk => { line("extra/" + pk.name, "t-arch"); line("    " + pk.desc); });
+        } else {
+          Object.entries(SIM_REPO)
+            .filter(([n, d]) => (n + d).includes(args[1].toLowerCase()))
+            .forEach(([n, d]) => { line("sim/" + n + " 1.0-1" + (hasPkg(n) ? " [installed]" : ""), "t-arch"); line("    " + d); });
+        }
+      } else if (args[0] === "-Q") {
+        ["base 3-2", "linux-arch 6.9.7-1", "springboard 6.1.3-1", "cage 0.2.0-1",
+         ...simPkgs().map(n => n + " 1.0-1")].forEach(l => line(l));
+      } else {
+        line("usage: pacman <-S pkg | -Ss query | -Syu | -Q>");
+      }
+    }
+
     const CMDS = {
-      help: () => line("commands: help, neofetch, uname -a, pacman -Syu, ls, whoami, uptime, btw, exit, clear"),
+      help: () => line("commands: help, neofetch, uname -a, pacman <-S|-Ss|-Syu|-Q>, ls, whoami, uptime, btw, exit, clear" +
+        (simPkgs().length ? " · installed: " + simPkgs().join(", ") : "")),
       neofetch: () => {
         const host = String(NativeBridge.get("hostname", "iPhone 5 (ARCH1,6)")).slice(0, 26);
         const kern = String(NativeBridge.get("kernel", "6.9.7-arch1-1")).slice(0, 26);
@@ -603,17 +880,14 @@ IOS.register({
       btw: () => line("I use Arch btw. (You had to ask?)"),
       exit: () => { line("logout"); setTimeout(() => IOS.goHome(), 400); },
       clear: () => { out.innerHTML = ""; },
-      "pacman -syu": () => {
-        line(":: Synchronizing package databases...");
-        const steps = [
-          [" core is up to date", 300],
-          [" extra is up to date", 550],
-          [" springboard is up to date", 800],
-          [":: Starting full system upgrade...", 1100],
-          [" there is nothing to do", 1500]
-        ];
-        steps.forEach(([t, d]) => setTimeout(() => { line(t, d === 1500 ? "t-ok" : null); }, d));
-      }
+      fortune: () => hasPkg("fortune")
+        ? line(FORTUNES[Math.floor(Math.random() * FORTUNES.length)])
+        : line("bash: fortune: command not found (pacman -S fortune)"),
+      sl: () => hasPkg("sl")
+        ? lines([["", "      ====        ________ "], ["", "  _D _|  |_______/        \\__I_I_____"],
+                 ["", "   |(_)---  |   H\\________/ |   |    "], ["", "   /     |  |   H  |  |     |   |    "],
+                 ["", "  |      |  |   H  |__------------- choo choo"]])
+        : line("bash: sl: command not found (pacman -S sl)")
     };
 
     let cur = "";
@@ -625,16 +899,35 @@ IOS.register({
       d.append(caret);
       cur = "";
     }
-    function exec() {
-      const c = cur.trim().toLowerCase();
+    async function exec() {
+      const raw = cur.trim();
+      const c = raw.toLowerCase().replace(/\s+/g, " ");
       out.querySelectorAll(".term-caret").forEach(x => x.remove());
       if (c) {
-        const fn = CMDS[c] || CMDS[c.replace(/\s+/g, " ")];
-        if (fn) fn();
-        else line("bash: " + cur.trim() + ": command not found (have you tried the wiki?)");
+        const argv = raw.split(/\s+/);
+        const cmd0 = argv[0].toLowerCase();
+        if (cmd0 === "pacman") {
+          // preserve flag case (-S vs -Ss), lowercase package names
+          const args = argv.slice(1).map((a, i) => a.startsWith("-") ? a : a.toLowerCase());
+          await pacmanCmd(args);
+        } else if (cmd0 === "cowsay") {
+          if (hasPkg("cowsay")) cowsay(argv.slice(1).join(" "));
+          else line("bash: cowsay: command not found (pacman -S cowsay)");
+        } else if (cmd0 === "figlet") {
+          if (hasPkg("figlet")) {
+            const msg = (argv.slice(1).join(" ") || "ARCH").toUpperCase().slice(0, 8);
+            lines([["t-arch", "  _  " .repeat(msg.length)],
+                   ["t-arch", msg.split("").map(ch => " " + ch + "  ").join(" ")],
+                   ["t-arch", " (big letters simulated — it's a phone)"]]);
+          } else line("bash: figlet: command not found (pacman -S figlet)");
+        } else {
+          const fn = CMDS[c] || CMDS[cmd0];
+          if (fn) await fn();
+          else line("bash: " + raw + ": command not found (have you tried the wiki?)");
+        }
       }
       if (c === "clear") { newPrompt(); return; }
-      setTimeout(newPrompt, c === "pacman -syu" ? 1700 : 30);
+      newPrompt();
     }
 
     // hardware keys + on-screen keyboard via hidden kb-field

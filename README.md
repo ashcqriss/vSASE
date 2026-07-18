@@ -132,6 +132,22 @@ real hardware its Changes/Search tabs front **actual pacman** through
 (loopback-only, validated names, disable by removing
 `IOS6D_ALLOW_INSTALL=1` from ios6d.service).
 
+**pacman, everywhere** — the Terminal speaks real pacman grammar:
+`pacman -S <pkg>`, `-Ss <query>`, `-Syu` and `-Q` run against the actual
+system through `ios6d` on Arch hardware, and against a small simulated repo
+in the browser (`pacman -S cowsay` really does give you a working `cowsay`;
+`fortune`, `sl` and `figlet` too). Settings → General → Software Update
+shows live pending updates and its Download-and-Install button runs a real
+`pacman -Syu` on hardware.
+
+**Deep apps** — Music has a library of three synthesized original tracks
+with working prev/next; Videos plays procedurally-generated films with
+pause and a progress bar; Voice Memos records from the actual microphone
+(MediaRecorder, with a synth fallback) and plays memos back; Stocks has an
+editable persistent watchlist (add with +, long-press to remove) —
+and Game Center's leaderboard shows your real Angry Penguins high score.
+Passbook passes open fullscreen; Newsstand issues are readable.
+
 **Every page exists** — Calendar (live month grid), Photos (generated camera
 roll), Camera (shots save to the roll), Videos, Weather, Passbook, Notes and
 Reminders (persistent), Clock (live world clocks, stopwatch, timer), Maps

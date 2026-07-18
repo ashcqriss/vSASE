@@ -193,6 +193,7 @@ const AppMarket = (() => {
             blocks.forEach(b => {
               if (!b.hit && pen.x > b.x - 8 && pen.x < b.x + b.w + 8 && pen.y > b.y - 8 && pen.y < b.y + b.h + 8) {
                 b.hit = true; score += b.boss ? 500 : 100; Snd.key();
+                if (score > Prefs.get("penguinHigh", 0)) Prefs.set("penguinHigh", score); // Game Center reads this
               }
             });
             if (pen.y > 380 || pen.x > 340) {

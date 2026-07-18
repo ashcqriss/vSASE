@@ -439,9 +439,33 @@ IOS.register({
         cell({ label: "Legal", chev: true, onTap: () => showAlert({ title: "Legal", text: "This is a loving fan recreation. Apple, iOS and iPhone are trademarks of Apple Inc. Arch Linux is a trademark of the Arch Linux project. No kernels were harmed." }) })),
       h("div", "group-foot", "Darwin was politely asked to leave.")));
 
-    const softwareUpdate = sub("Software Update", () => h("div", "content grouped",
-      group(cell({ label: "iOS 6.1.3", sub: "Your software is up to date.", cls: "static" })),
-      h("div", "group-foot", "pacman -Syu reports: nothing to do")));
+    const softwareUpdate = sub("Software Update", () => {
+      const box = h("div", "content grouped");
+      if (NativeBridge.active) {
+        box.append(h("div", "group-foot", "Checking for updates via pacman…"));
+        NativeBridge.pkgUpdates().then(r => {
+          box.innerHTML = "";
+          const ups = (r && r.updates) || [];
+          if (!ups.length) {
+            box.append(group(cell({ label: "iOS 6.1.3", sub: "Your software is up to date (pacman agrees).", cls: "static" })));
+          } else {
+            box.append(
+              group(cell({ label: "System Update", sub: ups.length + " packages: " + ups.slice(0, 4).join(", ") + (ups.length > 4 ? "…" : ""), cls: "static" })),
+              group(cell({ label: "Download and Install", onTap: async () => {
+                showAlert({ title: "Updating", text: "Running pacman -Syu. The status bar spinner is imaginary; the upgrade is not." });
+                const res = await NativeBridge.pkgUpgrade();
+                showAlert({ title: res && res.ok ? "Update Complete" : "Update Failed",
+                  text: ((res && res.log) || [(res && res.error) || "unknown error"]).join("\n") });
+              } })),
+              h("div", "group-foot", "This runs a real full system upgrade via ios6d."));
+          }
+        });
+      } else {
+        box.append(group(cell({ label: "iOS 6.1.3", sub: "Your software is up to date.", cls: "static" })),
+          h("div", "group-foot", "pacman -Syu reports: nothing to do (simulation). On hardware this tab runs the real thing."));
+      }
+      return box;
+    });
 
     const generalView = sub("General", () => h("div", "content grouped",
       group(
@@ -579,6 +603,28 @@ IOS.register({
     const canvas = h("canvas", { width: 600, height: 220 });
     let selected = 0;
 
+    // user-added tickers persist alongside the built-in list
+    Prefs.get("stocksExtra", []).forEach(x => {
+      if (!STOCKS.some(s => s.sym === x.sym)) STOCKS.push(x);
+    });
+
+    function detail(i) {
+      const s = STOCKS[i];
+      const seed = s.sym.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
+      showSheet([
+        { label: s.sym + " — open " + (s.price - s.chg).toFixed(2) + " · high " + (s.price + seed % 7).toFixed(2) +
+                 " · low " + (s.price - seed % 5).toFixed(2), onTap: () => {} },
+        { label: "Show chart", onTap: () => { selected = i; paintChart(); } },
+        { label: "Remove from watchlist", style: "destructive", onTap: () => {
+            STOCKS.splice(i, 1);
+            Prefs.set("stocksExtra", Prefs.get("stocksExtra", []).filter(x => x.sym !== s.sym));
+            if (selected >= STOCKS.length) selected = 0;
+            paintRows(); paintChart();
+          } },
+        { label: "Cancel", style: "cancel" }
+      ]);
+    }
+
     function paintRows() {
       rows.innerHTML = "";
       STOCKS.forEach((s, i) => {
@@ -587,8 +633,33 @@ IOS.register({
           h("div", "stk-price", s.price.toFixed(2)),
           h("div", "stk-chg " + (s.chg >= 0 ? "up" : "down"), (s.chg >= 0 ? "+" : "") + s.chg.toFixed(2)));
         r.addEventListener("click", () => { Snd.click(); selected = i; paintChart(); });
+        let lp = null;
+        r.addEventListener("pointerdown", () => { lp = setTimeout(() => detail(i), 550); });
+        ["pointerup", "pointerleave"].forEach(ev => r.addEventListener(ev, () => clearTimeout(lp)));
         rows.append(r);
       });
+    }
+
+    function addTicker() {
+      const field = kbField("Ticker symbol (e.g. TUX)", {
+        returnLabel: "Add", blueReturn: true,
+        onReturn: v => {
+          KB.close(); wrap.remove();
+          const sym = v.trim().toUpperCase().slice(0, 5);
+          if (!/^[A-Z]{1,5}$/.test(sym) || STOCKS.some(s => s.sym === sym)) return;
+          const seed = sym.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
+          const st = { sym, name: sym + " Holdings (fict.)", price: 20 + seed % 300, chg: ((seed % 11) - 5) / 2 };
+          STOCKS.push(st);
+          Prefs.set("stocksExtra", [...Prefs.get("stocksExtra", []), st]);
+          paintRows();
+        }
+      });
+      const wrap = h("div", { class: "sheet-wrap" },
+        h("div", "sheet",
+          h("div", { style: { color: "#fff", fontWeight: "bold", textAlign: "center", paddingBottom: "6px" } }, "Add Stock"),
+          field,
+          h("button", { class: "cancel", style: { marginTop: "8px" }, onclick: () => wrap.remove() }, "Cancel")));
+      $id("screen").append(wrap);
     }
 
     function paintChart() {
@@ -623,10 +694,12 @@ IOS.register({
     }, 4000);
 
     root.append(
-      navbar("Stocks", { dark: true, right: navBtn(gl("info", 15), () => showAlert({ title: "Stocks", text: "Quotes are randomly generated and 20 minutes into the future." })) }),
+      navbar("Stocks", { dark: true,
+        left: navBtn("+", () => addTicker()),
+        right: navBtn(gl("info", 15), () => showAlert({ title: "Stocks", text: "Quotes are randomly generated and 20 minutes into the future. Long-press a row for details / remove." })) }),
       rows,
       h("div", "stk-chart-wrap", canvas),
-      h("div", "stk-foot", "Market data may be fictional. LNX up forever."));
+      h("div", "stk-foot", "Tap + to add a ticker · long-press a row to remove. LNX up forever."));
     paintRows();
     paintChart();
   }

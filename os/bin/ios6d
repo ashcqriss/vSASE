@@ -162,6 +162,18 @@ def pkg_install(name):
     return {"ok": p.returncode == 0, "log": tail}
 
 
+def pkg_upgrade():
+    """Full system upgrade — Settings > Software Update, but it's pacman."""
+    if not ALLOW_INSTALL:
+        return {"ok": False, "error": "install disabled (set IOS6D_ALLOW_INSTALL=1)"}
+    if not shutil.which("pacman"):
+        return {"ok": False, "error": "pacman not found"}
+    p = subprocess.run(["pacman", "-Syu", "--noconfirm"],
+                       capture_output=True, text=True, timeout=1800)
+    tail = (p.stdout + p.stderr).strip().splitlines()[-5:]
+    return {"ok": p.returncode == 0, "log": tail}
+
+
 def send_sms(number, text):
     md = modem()
     if not md["present"]:
@@ -232,6 +244,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(400, {"ok": False, "error": "bad json"})
         if self.path == "/pkg/install":
             return self._reply(200, pkg_install(str(data.get("name", ""))))
+        if self.path == "/pkg/upgrade":
+            return self._reply(200, pkg_upgrade())
         number = str(data.get("number", ""))
         if not NUMBER_RE.match(number.replace(" ", "").replace("-", "")
                                .replace("(", "").replace(")", "")):
