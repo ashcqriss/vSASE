@@ -234,7 +234,8 @@ const AppMarket = (() => {
   ];
 
   /* ---- install state ---- */
-  const installed = () => Prefs.get("installedApps", []);
+  const DEFAULT_INSTALLED = ["lazyvim", "steps", "obsidian", "clipper"];
+  const installed = () => Prefs.get("installedApps", DEFAULT_INSTALLED);
   const isInstalled = id => installed().includes(id);
   function install(id) {
     if (isInstalled(id)) return;
@@ -247,16 +248,23 @@ const AppMarket = (() => {
   }
 
   /* register every catalog app with the springboard (hidden until installed) */
-  CATALOG.forEach(a => IOS.register({
-    id: a.id, name: a.name,
-    icon: tileIcon(a.bg, a.glyph),
-    statusbar: "black",
-    removable: true,
-    onClose: a.onClose,
-    render: a.render
-  }));
+  function registerApp(a) {
+    IOS.register({
+      id: a.id, name: a.name,
+      icon: a.icon || tileIcon(a.bg, a.glyph),
+      statusbar: a.statusbar || "black",
+      rootClass: a.rootClass,
+      removable: true,
+      onClose: a.onClose,
+      render: a.render
+    });
+  }
+  CATALOG.forEach(registerApp);
 
-  return { CATALOG, installed, isInstalled, install, uninstall };
+  /* other modules (js/apps/extras.js) contribute catalog apps here */
+  function addApps(list) { list.forEach(a => { CATALOG.push(a); registerApp(a); }); }
+
+  return { CATALOG, installed, isInstalled, install, uninstall, addApps };
 })();
 
 /* =================================================================

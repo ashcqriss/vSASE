@@ -318,6 +318,12 @@ IOS.register({
         h("span", { class: "tb-ico", html: Glyphs.chevL(), onclick: () => { Snd.click(); go("apple.com"); } }),
         h("span", { class: "tb-ico", html: Glyphs.chevR(), onclick: () => { Snd.click(); go("archlinux.org"); } }),
         h("span", { class: "tb-ico", html: Glyphs.share(), onclick: () => showSheet([
+          { label: "Clip to Obsidian", onTap: () => {
+              if (typeof AppMarket !== "undefined" && !AppMarket.isInstalled("clipper"))
+                return showAlert({ title: "Web Clipper", text: "Install Obsidian Web Clipper from the App Store first." });
+              const title = ObsidianVault.addClip(addr.value || "about:blank", page.innerText || "");
+              showAlert({ title: "Clipped", text: "Saved to your vault as “" + title + "”." });
+            } },
           { label: "Add to Home Screen", onTap: () => showAlert({ title: "Nope", text: "The home screen is full of memories already." }) },
           { label: "Mail Link to this Page", onTap: () => IOS.open("mail") },
           { label: "Cancel", style: "cancel" }]) }),
