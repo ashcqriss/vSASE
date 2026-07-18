@@ -133,8 +133,10 @@ jobs:
           # the virt machine's pflash devices must be exactly 64 MiB
           truncate -s 64M efi.fd
           truncate -s 64M efivars.fd
+          # -cpu max trips a TCG assertion (regime_is_user) in Ubuntu's QEMU
+          # with recent kernels; a concrete CPU model avoids the buggy path
           qemu-system-aarch64 \
-            -M virt -cpu max -m 2048 -smp 2 -accel tcg,thread=multi \
+            -M virt -cpu cortex-a72 -m 2048 -smp 2 -accel tcg,thread=multi \
             -drive if=pflash,format=raw,file=efi.fd,readonly=on \
             -drive if=pflash,format=raw,file=efivars.fd \
             -drive file=out/ios6-arch-aarch64.qcow2,if=virtio \
