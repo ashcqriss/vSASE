@@ -130,6 +130,8 @@ jobs:
       - name: Boot smoke test (UEFI serial console)
         run: |
           cp /usr/share/qemu-efi-aarch64/QEMU_EFI.fd efi.fd
+          # the virt machine's pflash devices must be exactly 64 MiB
+          truncate -s 64M efi.fd
           truncate -s 64M efivars.fd
           qemu-system-aarch64 \
             -M virt -cpu max -m 2048 -smp 2 -accel tcg,thread=multi \
