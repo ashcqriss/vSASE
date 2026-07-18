@@ -320,11 +320,17 @@ const StepsApp = {
     };
     window.addEventListener("devicemotion", def._mh);
 
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", async () => {
       Snd.click();
       tracking = !tracking;
       toggle.textContent = tracking ? "Stop Tracking" : "Start Tracking";
       if (tracking) {
+        // iOS 13+ Safari gates motion events behind a permission prompt
+        // that must be requested from a user gesture — this click is one
+        if (typeof DeviceMotionEvent !== "undefined" &&
+            typeof DeviceMotionEvent.requestPermission === "function") {
+          try { await DeviceMotionEvent.requestPermission(); } catch (e) { /* denied → tap mode */ }
+        }
         gotMotion = false;
         def._iv = setTimeout(() => {
           if (!gotMotion) sub.textContent = "No accelerometer here — tap the shoe to take steps.";
