@@ -431,12 +431,74 @@ IOS.register({
       onReturn: v => { KB.close(); go(v.trim()); }
     });
 
-    /* navigation history across curated + real-internet pages */
-    const hist = [];
-    let hi = -1;
-    function navigate(url) { hist.splice(hi + 1); hist.push(url); hi = hist.length - 1; render(url); }
-    function goBack() { if (hi > 0) { hi--; render(hist[hi]); } }
-    function goFwd() { if (hi < hist.length - 1) { hi++; render(hist[hi]); } }
+    /* tabs: each keeps its own history */
+    const TABS = [{ hist: [""], hi: 0 }];
+    let curTab = 0;
+    const tab = () => TABS[curTab];
+    function navigate(url) {
+      const t = tab();
+      t.hist.splice(t.hi + 1);
+      t.hist.push(url);
+      t.hi = t.hist.length - 1;
+      render(url);
+    }
+    function goBack() { const t = tab(); if (t.hi > 0) { t.hi--; render(t.hist[t.hi]); } }
+    function goFwd() { const t = tab(); if (t.hi < t.hist.length - 1) { t.hi++; render(t.hist[t.hi]); } }
+
+    /* the address field doubles as the iOS-blue loading bar */
+    function progressStart() {
+      addr.classList.add("loading");
+      addr.style.setProperty("--p", "12%");
+      setTimeout(() => addr.classList.contains("loading") && addr.style.setProperty("--p", "68%"), 350);
+      setTimeout(() => addr.classList.contains("loading") && addr.style.setProperty("--p", "84%"), 2200);
+    }
+    function progressDone() {
+      addr.style.setProperty("--p", "100%");
+      setTimeout(() => { addr.classList.remove("loading"); addr.style.setProperty("--p", "0%"); }, 350);
+    }
+
+    /* on real hardware, hand the URL to the actual browser engine */
+    async function openRealBrowser(url) {
+      const r = await fetch("http://127.0.0.1:9641/browser", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) })
+        .then(x => x.json()).catch(() => null);
+      if (r && r.ok)
+        showAlert({ title: "Opening", text: "Launching the full " + (r.engine || "browser") + " engine — close its window to come back to the shell." });
+      else
+        showAlert({ title: "Real Browser", text: (r && r.error) || "No engine reachable — this works on the installed device." });
+    }
+
+    function tabsOverlay() {
+      const wrap = h("div", "sheet-wrap");
+      const close = () => wrap.remove();
+      wrap.addEventListener("click", e => { if (e.target === wrap) close(); });
+      const grid = h("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } });
+      TABS.forEach((t, i) => {
+        const cur = t.hist[t.hi] || "Start page";
+        const row = h("div", { class: "saf-tabrow" + (i === curTab ? " on" : "") },
+          h("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
+            cur.replace("curated:", "") || "Start page"),
+          TABS.length > 1 ? h("span", { class: "saf-tabx", onclick: e => {
+            e.stopPropagation();
+            TABS.splice(i, 1);
+            if (curTab >= TABS.length) curTab = TABS.length - 1;
+            close(); render(tab().hist[tab().hi]);
+          } }, "✕") : null);
+        row.addEventListener("click", () => { curTab = i; close(); render(tab().hist[tab().hi]); });
+        grid.append(row);
+      });
+      wrap.append(h("div", "sheet",
+        h("div", { style: { color: "#fff", fontWeight: "bold", textAlign: "center", paddingBottom: "6px" } },
+          TABS.length + (TABS.length === 1 ? " Tab" : " Tabs")),
+        grid,
+        h("button", { style: { marginTop: "8px" }, onclick: () => {
+          TABS.push({ hist: [""], hi: 0 });
+          curTab = TABS.length - 1;
+          close(); render("");
+        } }, "New Tab"),
+        h("button", { class: "cancel", onclick: close }, "Done")));
+      $id("screen").append(wrap);
+    }
 
     function go(input) {
       if (!input) return navigate("");
@@ -449,7 +511,9 @@ IOS.register({
       return navigate("https://lite.duckduckgo.com/lite/?q=" + encodeURIComponent(input));
     }
 
+    let navSeq = 0;
     function render(url) {
+      const nav = ++navSeq;
       page.innerHTML = "";
       page.scrollTop = 0;
       if (!url) { page.append(SITES.start()); addr.value = ""; return; }
@@ -462,21 +526,37 @@ IOS.register({
       /* the real internet, framed — works whenever the device is online
          and the site does not refuse to be embedded */
       addr.value = url;
+      progressStart();
       const spin = h("div", { style: { padding: "40px 0", display: "flex", justifyContent: "center" } },
         h("div", "boot-spinner"));
       const frame = h("iframe", { src: url, class: "saf-frame" });
-      let loaded = false;
-      frame.addEventListener("load", () => { loaded = true; spin.remove(); });
-      setTimeout(() => {
-        if (loaded) return;
-        frame.remove(); spin.remove();
+      let settled = false;
+      function showFail() {
+        if (settled || navSeq !== nav) return;
+        settled = true;
+        frame.remove(); spin.remove(); progressDone();
         page.append(h("div", "web body-pad",
           h("h2", null, "Cannot Open Page"),
           h("p", null, "Safari could not load “" + url + "”. Either this device is offline, or the site refuses to appear inside other pages (their loss)."),
+          NativeBridge.active
+            ? h("button", { class: "big-blue-btn", style: { margin: "10px 0" },
+                onclick: () => openRealBrowser(url) }, "Open in the Full Browser Engine")
+            : h("p", { style: { fontSize: "12px", color: "#79818c" } },
+                "On the installed device, one tap here opens the page in the real Firefox engine."),
           h("p", null, "Meanwhile, the curated internet is always up: ",
             h("a", { onclick: () => go("apple.com") }, "apple.com"), " · ",
             h("a", { onclick: () => go("archlinux.org") }, "archlinux.org"))));
-      }, 9000);
+      }
+      frame.addEventListener("load", () => {
+        if (settled || navSeq !== nav) return;
+        spin.remove(); progressDone();
+      });
+      /* the iframe fires `load` even for its own error page, so probe the
+         host directly — an unreachable site gets the failure page at once */
+      fetch(url, { mode: "no-cors", signal: AbortSignal.timeout(7000) })
+        .then(() => { if (navSeq === nav) settled = true; })
+        .catch(showFail);
+      setTimeout(showFail, 9000);
       page.append(spin, frame);
     }
 
@@ -487,6 +567,12 @@ IOS.register({
         h("span", { class: "tb-ico", html: Glyphs.chevL(), onclick: () => { Snd.click(); goBack(); } }),
         h("span", { class: "tb-ico", html: Glyphs.chevR(), onclick: () => { Snd.click(); goFwd(); } }),
         h("span", { class: "tb-ico", html: Glyphs.share(), onclick: () => showSheet([
+          { label: "Open in Full Browser (Firefox)", onTap: () => {
+              const cur = tab().hist[tab().hi];
+              const url = cur && !cur.startsWith("curated:") ? cur : "https://example.com";
+              if (NativeBridge.active) openRealBrowser(url);
+              else showAlert({ title: "Full Browser", text: "On the installed device this opens the page in the real Firefox engine, fullscreen. In the demo, imagine harder." });
+            } },
           { label: "Clip to Obsidian", onTap: () => {
               if (typeof AppMarket !== "undefined" && !AppMarket.isInstalled("clipper"))
                 return showAlert({ title: "Web Clipper", text: "Install Obsidian Web Clipper from the App Store first." });
@@ -497,7 +583,7 @@ IOS.register({
           { label: "Mail Link to this Page", onTap: () => IOS.open("mail") },
           { label: "Cancel", style: "cancel" }]) }),
         h("span", { class: "tb-ico", html: Glyphs.book(), onclick: () => { Snd.click(); go(""); } }),
-        h("span", { class: "tb-ico", html: Glyphs.pages(), onclick: () => showAlert({ title: "Tabs", text: "You have 1 tab open. A simpler time." }) })));
+        h("span", { class: "tb-ico", html: Glyphs.pages(), onclick: () => { Snd.click(); tabsOverlay(); } })));
     go("");
   }
 });
@@ -1072,7 +1158,7 @@ IOS.register({
     }
 
     const CMDS = {
-      help: () => line("commands: help, neofetch, uname -a, pacman <-S|-Ss|-Syu|-Q>, ls, whoami, uptime, btw, exit, clear" +
+      help: () => line("commands: help, neofetch, uname -a, pacman <-S|-Ss|-Syu|-Q>, curl, ping, firefox <url>, sudo, free, df, ps, htop, ls, whoami, uptime, btw, exit, clear" +
         (simPkgs().length ? " · installed: " + simPkgs().join(", ") : "")),
       neofetch: () => {
         const host = String(NativeBridge.get("hostname", "iPhone 5 (ARCH1,6)")).slice(0, 26);
@@ -1202,6 +1288,16 @@ IOS.register({
           } catch (e) { line("request timeout seq=" + i); }
         }
         line("--- " + host0 + ": " + ok + "/3 received ---", ok ? "t-ok" : "");
+      } else if (cmd0 === "firefox") {
+        const u0 = argv.slice(1).find(a => !a.startsWith("-")) || "https://example.com";
+        const url = /^https?:\/\//.test(u0) ? u0 : "https://" + u0;
+        if (!NativeBridge.active)
+          return line("firefox: no wayland display (this works on the installed device)");
+        const r = await fetch("http://127.0.0.1:9641/browser", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) })
+          .then(x => x.json()).catch(() => null);
+        line(r && r.ok ? "* launching " + (r.engine || "browser") + " on " + url
+                       : "firefox: " + ((r && r.error) || "engine unreachable"));
       } else if (cmd0 === "cowsay") {
         if (hasPkg("cowsay")) cowsay(argv.slice(1).join(" "));
         else line("bash: cowsay: command not found (pacman -S cowsay)");

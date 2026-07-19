@@ -291,11 +291,14 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 .page {
   flex: 0 0 320px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* iOS 6 metrics: 57px tiles, 16px edge margins -> three 20px gutters */
+  grid-template-columns: repeat(4, 57px);
+  justify-content: space-between;
   grid-auto-rows: 88px;
-  padding: 8px 6px 0;
+  padding: 7px 16px 0;
   align-content: start;
 }
+.sb-icon { width: 57px; }
 .sb-icon {
   display: flex; flex-direction: column; align-items: center;
   gap: 3px; padding-top: 6px;
@@ -330,11 +333,12 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 
 #page-dots {
   position: absolute; bottom: 100px; left: 0; right: 0; height: 14px;
-  display: flex; align-items: center; justify-content: center; gap: 9px;
+  display: flex; align-items: center; justify-content: center; gap: 11px;
 }
 #page-dots i {
   width: 6px; height: 6px; border-radius: 50%;
   background: rgba(255,255,255,.35);
+  box-shadow: 0 1px 1px rgba(0,0,0,.4);
 }
 #page-dots i.on { background: rgba(255,255,255,.95); }
 
@@ -352,8 +356,8 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 }
 #dock-icons {
   position: relative;
-  display: flex; justify-content: center; gap: 19px;
-  padding-top: 8px;
+  display: flex; justify-content: space-between;
+  padding: 8px 16px 0;
 }
 #dock-icons .sb-icon .label { display: none; }
 #dock-icons .sb-icon .glyph {
@@ -411,16 +415,16 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 .navbar .nav-right { position: absolute; right: 6px; }
 
 .nav-btn {
-  height: 30px; padding: 0 10px;
-  border: 1px solid #46557183;
+  height: 30px; min-width: 52px; padding: 0 9px;
   border: 1px solid rgba(45,56,82,.75);
-  border-radius: 6px;
-  background: linear-gradient(#8b9db4, #64809f 50%, #52708f 51%, #5f7d9c);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+  border-radius: 5px;
+  background: linear-gradient(#93a5bc, #64809f 50%, #52708f 51%, #5f7d9c);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 1px 0 rgba(255,255,255,.25);
   color: #fff; font-size: 13px; font-weight: bold;
-  text-shadow: 0 -1px 0 rgba(0,0,0,.4);
+  text-shadow: 0 -1px 0 rgba(0,0,0,.45);
   cursor: pointer;
   font-family: inherit;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .nav-btn:active { background: linear-gradient(#5c718b, #415d7c); }
 .nav-btn.back {
@@ -454,9 +458,9 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 }
 .tab {
   flex: 1;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 1px; padding-top: 3px;
-  color: #999; font-size: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 2px; padding: 4px 0 3px;
+  color: #999; font-size: 10px; letter-spacing: .01em;
   cursor: pointer;
 }
 .tab .t-ico { font-size: 20px; line-height: 22px; height: 24px; display: flex; align-items: center; }
@@ -517,20 +521,25 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 }
 .cell {
   min-height: 44px;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 10px;
-  border-bottom: 1px solid #dfe1e4;
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 12px;
+  border-bottom: 1px solid #d9dbde;
   font-size: 16px; font-weight: bold; color: #000;
   background: #fff;
   cursor: pointer;
   position: relative;
 }
+.group .cell:first-child { box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
 .cell:last-child { border-bottom: none; }
 .cell.static { cursor: default; }
 .cell:not(.static):active { background: linear-gradient(#7c9ff0, #2f5bd4); color: #fff; }
 .cell .c-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell .c-value { color: #4f6b9c; font-weight: normal; font-size: 15px; text-align: right; }
-.cell .c-chev { color: #b0b3ba; font-size: 17px; font-weight: bold; }
+.cell .c-chev {
+  color: #b4b7bd; font-size: 20px; font-weight: bold;
+  line-height: 1; margin-top: -2px; flex: 0 0 auto;
+  text-shadow: 0 1px 0 rgba(255,255,255,.8);
+}
 .cell:not(.static):active .c-value, .cell:not(.static):active .c-chev { color: #fff; }
 .cell .c-ico {
   width: 29px; height: 29px; border-radius: 6px; flex: 0 0 29px;
@@ -574,11 +583,11 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 }
 .toggle .tg-knob {
   position: absolute; top: 0; left: 51px;
-  width: 27px; height: 25px;
-  border-radius: 13px;
+  width: 25px; height: 25px;
+  border-radius: 50%;
   border: 1px solid #8e939b;
-  background: linear-gradient(#fdfdfd, #d2d5da);
-  box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  background: radial-gradient(circle at 50% 32%, #ffffff, #d2d5da 78%);
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), inset 0 -1px 1px rgba(0,0,0,.12);
 }
 
 /* ---------------- Segmented control ---------------- */
@@ -633,31 +642,44 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 #keyboard {
   position: absolute; left: 0; right: 0; bottom: 0; height: 216px;
   z-index: 110;
-  background: linear-gradient(#9099a4, #6f7885);
+  background: linear-gradient(#98a1ac, #6f7885);
   border-top: 1px solid #2c3038;
-  padding: 4px 2px 3px;
-  display: flex; flex-direction: column; gap: 6px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+  padding: 8px 0;
+  display: flex; flex-direction: column; justify-content: space-between;
   animation: kbup .2s ease-out;
 }
 @keyframes kbup { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.kb-row { display: flex; justify-content: center; gap: 5px; padding: 0 2px; flex: 1; }
+.kb-row { display: flex; justify-content: center; gap: 5px; height: 44px; flex: 0 0 44px; }
 .kb-key {
-  flex: 1; max-width: 28px;
+  flex: 0 0 27px; width: 27px;
   border: none; border-radius: 5px;
-  background: linear-gradient(#fdfdfd, #d6d9de);
-  box-shadow: 0 1.5px 0 #454b54;
-  color: #000; font-size: 16px; font-weight: 500;
+  background: linear-gradient(#ffffff, #e8eaee 60%, #d4d8de);
+  box-shadow: 0 1px 0 #3c424c, inset 0 1px 0 rgba(255,255,255,.9);
+  color: #111; font-size: 17px; font-weight: 400;
   font-family: inherit;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
-.kb-key:active { background: linear-gradient(#9fb4e8, #6f8fd8); }
-.kb-key.wide { max-width: 42px; flex: 1.4; background: linear-gradient(#a8b0bc, #79828f); color: #fff; font-size: 13px; }
+.kb-key:active { background: linear-gradient(#9fb4e8, #6f8fd8); color: #fff; }
+.kb-key.wide {
+  flex: 0 0 36px; width: 36px;
+  background: linear-gradient(#a3abb8, #7b8492 60%, #6d7684);
+  box-shadow: 0 1px 0 #333944, inset 0 1px 0 rgba(255,255,255,.35);
+  color: #fff; font-size: 13px;
+}
 .kb-key.wide:active { background: linear-gradient(#fdfdfd, #d6d9de); color: #000; }
-.kb-key.space { max-width: 150px; flex: 5; font-size: 13px; }
-.kb-key.return { max-width: 66px; flex: 2.2; background: linear-gradient(#a8b0bc, #79828f); color: #fff; font-size: 13px; }
-.kb-key.return.blue { background: linear-gradient(#7c9ff0, #2f5bd4); }
-.kb-key.shift.on { background: linear-gradient(#fff, #fff); color: #2f5bd4; }
+.kb-row:last-child .kb-key.wide { flex: 0 0 40px; width: 40px; }
+.kb-key.space { flex: 1 1 auto; width: auto; max-width: 186px; font-size: 14px; color: #333; }
+.kb-key.return {
+  flex: 0 0 68px; width: 68px;
+  background: linear-gradient(#a3abb8, #7b8492 60%, #6d7684);
+  box-shadow: 0 1px 0 #333944, inset 0 1px 0 rgba(255,255,255,.35);
+  color: #fff; font-size: 13px;
+}
+.kb-key.return.blue { background: linear-gradient(#7c9ff0, #4a76e0 60%, #2f5bd4); }
+.kb-key.shift.on { background: linear-gradient(#ffffff, #f2f4f8); color: #2f5bd4; box-shadow: 0 1px 0 #3c424c, inset 0 0 4px rgba(47,91,212,.35); }
+.kb-row:last-child { padding: 0 3px; }
 
 /* while the keyboard is up, the frontmost app shrinks so bottom bars sit above it */
 #screen.kb-open .app-root { bottom: 216px; }
@@ -713,10 +735,11 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   display: flex; align-items: center; justify-content: center;
 }
 .alert {
-  width: 260px;
-  border-radius: 12px;
-  background: linear-gradient(rgba(90,110,155,.96), rgba(40,55,95,.96));
-  border: 1.5px solid rgba(255,255,255,.5);
+  width: 264px;
+  border-radius: 10px;
+  background: linear-gradient(rgba(96,116,162,.97), rgba(38,52,92,.97));
+  border: 1.5px solid rgba(255,255,255,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 24px rgba(0,0,0,.6);
   box-shadow: 0 6px 24px rgba(0,0,0,.6);
   color: #fff; text-align: center;
   padding: 14px 12px 10px;

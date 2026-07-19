@@ -2,6 +2,7 @@
 # --- iOS 6 · Arch Edition shell ---
 cage
 chromium
+firefox
 modemmanager
 networkmanager
 noto-fonts

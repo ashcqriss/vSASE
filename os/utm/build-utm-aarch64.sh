@@ -53,6 +53,7 @@ echo ":: installing the shell stack"
 run "pacman -S --noconfirm --needed cage seatd python ttf-dejavu noto-fonts dosfstools \
      pipewire pipewire-pulse pipewire-alsa wireplumber"
 run "pacman -S --noconfirm --needed chromium || pacman -S --noconfirm --needed epiphany"
+run "pacman -S --noconfirm --needed firefox || true"
 
 echo ":: installing SpringBoard"
 mkdir -p "$ROOT/usr/share/ios6"

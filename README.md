@@ -140,6 +140,16 @@ in the browser (`pacman -S cowsay` really does give you a working `cowsay`;
 shows live pending updates and its Download-and-Install button runs a real
 `pacman -Syu` on hardware.
 
+**Safari is a real browser** — the 2012 chrome is the shell, the rendering
+is not: type any address and Safari frames the live page, with the iOS 6
+blue loading bar filling the address field and per-tab history behind the
+tabs button (switch, close, New Tab). Sites that refuse to be framed — or
+any page, via Share → "Open in Full Browser (Firefox)" — are handed to the
+**real Firefox engine** installed on the device: `ios6d` launches it
+fullscreen under cage (`POST /browser`, loopback-only, URL-validated,
+firefox → chromium → epiphany fallback), and closing it drops you back on
+the springboard. The Terminal's `firefox <url>` does the same.
+
 **Deep apps** — Music has a library of three synthesized original tracks
 with working prev/next; Videos plays procedurally-generated films with
 pause and a progress bar; Voice Memos records from the actual microphone
