@@ -151,6 +151,7 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   background-size: 3px 3px, 5px 5px;
   background-position: 0 0, 1px 2px;
 }
+.wp-custom { background-size: cover; background-position: center; background-color: #000; }
 .wp-rays {
   background:
     repeating-conic-gradient(from 200deg at 80% -10%, rgba(255,255,255,.05) 0 4deg, transparent 4deg 9deg),
@@ -352,6 +353,39 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   box-shadow: 0 1px 1px rgba(0,0,0,.4);
 }
 #page-dots i.on { background: rgba(255,255,255,.95); }
+
+/* wiggle-mode drag */
+.drag-ghost {
+  position: absolute; z-index: 260; width: 57px;
+  pointer-events: none;
+  transform: scale(1.14);
+  opacity: .92;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.55));
+}
+.sb-icon.drag-src { opacity: .3; }
+
+/* volume rocker HUD — the translucent bezel */
+.vol-hud {
+  position: absolute; left: 50%; top: 42%; z-index: 340;
+  transform: translate(-50%, -50%);
+  width: 170px; padding: 18px 0 16px;
+  border-radius: 18px;
+  background: rgba(28,30,38,.82);
+  border: 1px solid rgba(255,255,255,.22);
+  box-shadow: 0 8px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+.vol-hud.hidden { display: flex; opacity: 0; visibility: hidden; }
+.vol-ico { color: #e8ecf2; }
+.vol-ico svg { width: 34px; height: 34px; }
+.vol-bars { display: flex; gap: 3px; }
+.vol-bars i {
+  width: 6px; height: 9px; border-radius: 1.5px;
+  background: rgba(255,255,255,.22);
+}
+.vol-bars i.on { background: #fff; box-shadow: 0 0 3px rgba(255,255,255,.5); }
 /* iOS 6 detail: the row starts with a tiny magnifier for the search page */
 #page-dots .dot-mag {
   display: inline-flex; color: rgba(255,255,255,.5);
@@ -2550,6 +2584,9 @@ const Snd = (() => {
     return ctx;
   }
   function tone(freq, dur, { type = "sine", gain = 0.12, when = 0, freq2 = null } = {}) {
+    const master = (typeof Prefs !== "undefined" ? Prefs.get("volume", 12) : 12) / 12;
+    if (master <= 0) return;
+    gain *= master;
     const a = ac(); if (!a) return;
     const t0 = a.currentTime + when;
     const o = a.createOscillator(), g = a.createGain();
@@ -2618,6 +2655,11 @@ const Prefs = {
     try { localStorage.setItem("ios6." + k, JSON.stringify(v)); } catch (e) { /* private mode */ }
   }
 };
+
+/* contacts the user added on-device (Contacts app > +) survive reboots */
+Prefs.get("userContacts", []).forEach(c => {
+  if (c && c.id && !CONTACTS.some(x => x.id === c.id)) CONTACTS.push(c);
+});
 
 </script>
 <script>
@@ -3576,14 +3618,36 @@ const IOS = (() => {
   let editMode = false; // wiggle mode: long-press an icon, ✕ removes installed apps
 
   function currentPages() {
-    const pages = HOME_PAGES.map(p => [...p]);
+    const known = id => !!apps[id];
     const extra = (typeof AppMarket !== "undefined")
-      ? AppMarket.installed().filter(id => apps[id]) : [];
-    for (const id of extra) {
-      if (pages[pages.length - 1].length >= 16) pages.push([]);
-      pages[pages.length - 1].push(id);
+      ? AppMarket.installed().filter(known) : [];
+    const wanted = [...HOME_PAGES.flat(), ...extra];
+    const saved = Prefs.get("homeLayout", null);
+    let pages;
+    if (Array.isArray(saved) && saved.length) {
+      // user-arranged order wins; drop apps that no longer exist/are uninstalled
+      const valid = new Set(wanted);
+      pages = saved.map(p => p.filter(id => valid.has(id)));
+    } else {
+      pages = HOME_PAGES.map(p => [...p]);
     }
-    return pages;
+    const present = new Set(pages.flat());
+    for (const id of wanted) {
+      if (present.has(id)) continue;
+      if (!pages.length || pages[pages.length - 1].length >= 16) pages.push([]);
+      pages[pages.length - 1].push(id);
+      present.add(id);
+    }
+    pages = pages.filter(p => p.length);
+    return pages.length ? pages : HOME_PAGES.map(p => [...p]);
+  }
+
+  /* the DOM order after a drag IS the layout */
+  function saveLayout() {
+    const layout = [...$id("pages").children]
+      .map(pg => [...pg.querySelectorAll(".sb-icon")].map(el => el.dataset.app))
+      .filter(p => p.length);
+    Prefs.set("homeLayout", layout);
   }
 
   /* ---- status bar ---- */
@@ -3611,7 +3675,14 @@ const IOS = (() => {
 
   /* ---- wallpaper & brightness ---- */
   function applyWallpaper() {
-    wallpaper.className = Prefs.get("wallpaper", "wp-water");
+    const wp = Prefs.get("wallpaper", "wp-water");
+    if (wp === "wp-custom") {
+      wallpaper.className = "wp-custom";
+      wallpaper.style.backgroundImage = "url(" + Prefs.get("wallpaperData", "") + ")";
+    } else {
+      wallpaper.style.backgroundImage = "";
+      wallpaper.className = wp;
+    }
   }
   function applyBrightness() {
     $id("dimmer").style.opacity = (1 - Prefs.get("brightness", 100) / 100) * 0.75;
@@ -3642,8 +3713,8 @@ const IOS = (() => {
     e.addEventListener("click", () => { if (!editMode) open(id); });
     // long-press enters wiggle mode
     let lp = null;
-    e.addEventListener("pointerdown", () => {
-      if (editMode) return;
+    e.addEventListener("pointerdown", ev => {
+      if (editMode) { startIconDrag(e, ev); return; }
       lp = setTimeout(() => { editMode = true; Snd.click(); buildHome(); }, 650);
     });
     const cancelLp = () => { if (lp) { clearTimeout(lp); lp = null; } };
@@ -3653,7 +3724,81 @@ const IOS = (() => {
     return e;
   }
 
+  /* ---- wiggle-mode drag to rearrange (persists across reboots) ---- */
+  let iconDragging = false;
+  function startIconDrag(icon, ev) {
+    if (ev.target.closest(".sb-remove")) return; // the ✕ stays a tap
+    const screenEl = $id("screen");
+    const x0 = ev.clientX, y0 = ev.clientY;
+    let ghost = null, lastFlip = 0;
+    try { icon.setPointerCapture(ev.pointerId); } catch (e2) { /* older engines */ }
+
+    function lift(mv) {
+      iconDragging = true;
+      const r = icon.getBoundingClientRect(), sr = screenEl.getBoundingClientRect();
+      ghost = icon.cloneNode(true);
+      ghost.classList.remove("wiggling");
+      ghost.classList.add("drag-ghost");
+      ghost.style.left = (r.left - sr.left) + "px";
+      ghost.style.top = (r.top - sr.top) + "px";
+      screenEl.append(ghost);
+      icon.classList.add("drag-src");
+      move(mv);
+    }
+
+    function move(mv) {
+      const sr = screenEl.getBoundingClientRect();
+      ghost.style.left = (mv.clientX - sr.left - 28) + "px";
+      ghost.style.top = (mv.clientY - sr.top - 40) + "px";
+
+      // hovering a screen edge flips the page (once per 600ms)
+      const sx = mv.clientX - sr.left;
+      const now = Date.now();
+      const pageCount = $id("pages").children.length;
+      if (now - lastFlip > 600) {
+        if (sx < 26 && page > 0) { page--; snapPage(); lastFlip = now; }
+        else if (sx > sr.width - 26 && page < pageCount - 1) { page++; snapPage(); lastFlip = now; }
+      }
+
+      // live reflow: slot the real (dimmed) icon where the pointer points
+      const under = document.elementsFromPoint(mv.clientX, mv.clientY);
+      const target = under.find(el => el.classList && el.classList.contains("sb-icon")
+        && el !== icon && !el.classList.contains("drag-ghost"));
+      if (target && target.parentElement) {
+        const tr = target.getBoundingClientRect();
+        const after = mv.clientX > tr.left + tr.width / 2;
+        target.parentElement.insertBefore(icon, after ? target.nextSibling : target);
+      } else {
+        const pg = under.find(el => el.classList && el.classList.contains("page"));
+        if (pg && icon.parentElement !== pg && pg.querySelectorAll(".sb-icon").length < 16)
+          pg.append(icon);
+      }
+    }
+
+    function onMove(mv) {
+      if (!ghost && Math.hypot(mv.clientX - x0, mv.clientY - y0) < 8) return;
+      if (!ghost) lift(mv); else move(mv);
+    }
+    function onUp() {
+      // listeners live on document: pointer capture is unreliable once the
+      // pointer leaves the (wiggling) icon, and a drop must always land
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+      if (!ghost) return;
+      ghost.remove();
+      icon.classList.remove("drag-src");
+      iconDragging = false;
+      saveLayout();
+      Snd.click();
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+  }
+
   function buildHome() {
+    document.querySelectorAll(".drag-ghost").forEach(g => g.remove());
     const layout = currentPages();
     if (page >= layout.length) page = layout.length - 1;
     const pages = $id("pages");
@@ -3686,9 +3831,13 @@ const IOS = (() => {
     pages.addEventListener("click", e => {
       if (swiped) { e.stopPropagation(); e.preventDefault(); swiped = false; }
     }, true);
-    pages.addEventListener("pointerdown", e => { x0 = e.clientX; dx = 0; swiped = false; });
+    pages.addEventListener("pointerdown", e => {
+      // in wiggle mode a press on an icon is a drag, not a page swipe
+      if (editMode && e.target.closest(".sb-icon")) { x0 = null; return; }
+      x0 = e.clientX; dx = 0; swiped = false;
+    });
     pages.addEventListener("pointermove", e => {
-      if (x0 === null) return;
+      if (x0 === null || iconDragging) return;
       dx = e.clientX - x0;
       if (Math.abs(dx) > 8) {
         pages.style.transition = "none";
@@ -3699,7 +3848,7 @@ const IOS = (() => {
       if (x0 === null) return;
       swiped = Math.abs(dx) > 10;
       pages.style.transition = "";
-      if (dx < -50 && page < HOME_PAGES.length - 1) page++;
+      if (dx < -50 && page < pages.children.length - 1) page++;
       else if (dx > 50 && page > 0) page--;
       snapPage();
       x0 = null;
@@ -3815,6 +3964,27 @@ const IOS = (() => {
     if (state === "asleep") wake(); else sleep();
   });
   $id("screen-off").addEventListener("click", wake);
+
+  /* ---- volume rocker + the translucent bezel HUD ---- */
+  (() => {
+    const hud = h("div", { class: "vol-hud hidden" },
+      h("div", { class: "vol-ico", html: Glyphs.speaker() }),
+      h("div", "vol-bars", Array.from({ length: 16 }, () => h("i"))));
+    $id("screen").append(hud);
+    let hideT = null;
+    function bump(delta) {
+      if (state === "off" || state === "boot") return;
+      const v = Math.max(0, Math.min(16, Prefs.get("volume", 12) + delta));
+      Prefs.set("volume", v);
+      [...hud.querySelectorAll(".vol-bars i")].forEach((b, i) => b.classList.toggle("on", i < v));
+      hud.classList.remove("hidden");
+      clearTimeout(hideT);
+      hideT = setTimeout(() => hud.classList.add("hidden"), 1200);
+      Snd.click();
+    }
+    document.querySelector(".dev-vol-up").addEventListener("click", () => bump(2));
+    document.querySelector(".dev-vol-down").addEventListener("click", () => bump(-2));
+  })();
 
   return {
     register(def) { apps[def.id] = def; },
@@ -4012,10 +4182,42 @@ const MessagesApp = (() => {
   }
 
   function composeSheet() {
-    showSheet([
-      ...CONTACTS.slice(0, 3).map(c => ({ label: contactName(c), onTap: () => openThreadFor(c.id) })),
-      { label: "Cancel", style: "cancel" }
-    ]);
+    /* a real New Message screen: pick any contact, or type any number */
+    const sug = h("div", { class: "content list", style: { flex: "1" } });
+    function paintSug(q) {
+      sug.innerHTML = "";
+      const ql = (q || "").toLowerCase();
+      CONTACTS.filter(c => !ql || contactName(c).toLowerCase().includes(ql) || c.phone.replace(/\D/g, "").includes(ql.replace(/\D/g, "") || " "))
+        .slice(0, 9)
+        .forEach(c => sug.append(cell({ label: contactName(c), value: c.phone,
+          onTap: () => { KB.close(); nav.pop(); openThreadFor(c.id); } })));
+    }
+    const to = kbField("To: name or number", {
+      returnLabel: "Go", blueReturn: true,
+      onChange: paintSug,
+      onReturn: v => {
+        KB.close();
+        const q = v.trim();
+        if (!q) return;
+        let c = CONTACTS.find(x => contactName(x).toLowerCase() === q.toLowerCase()) || contactByNumber(q);
+        if (!c) {
+          const digits = q.replace(/\D/g, "");
+          if (digits.length < 3)
+            return showAlert({ title: "Messages", text: "Type a contact name, or a phone number to start a new conversation." });
+          c = { id: "u" + digits, first: q, last: "", phone: q, email: "", imessage: false, fav: false };
+          CONTACTS.push(c);
+          Prefs.set("userContacts", [...Prefs.get("userContacts", []), c]);
+        }
+        nav.pop();
+        openThreadFor(c.id);
+      }
+    });
+    paintSug("");
+    nav.push(navView(
+      navbar("New Message", { left: navBtn("Cancel", () => { KB.close(); nav.pop(); }) }),
+      h("div", "searchbar", to),
+      sug));
+    setTimeout(() => KB.open(to), 120);
   }
 
   function bubbleEl(t, m) {
@@ -4160,14 +4362,18 @@ const MessagesApp = (() => {
    ================================================================= */
 
 const PhoneApp = (() => {
-  const RECENTS = [
+  const RECENTS = Prefs.get("recents", null) || [
     { name: "Mom", time: "9:15 AM", type: "in" },
     { name: "Kate Bell", time: "Yesterday", type: "missed" },
     { name: "Natalia Maric", time: "Yesterday", type: "out" },
     { name: "(555) 284-1103", time: "Tuesday", type: "missed" },
     { name: "Zach Wood", time: "Monday", type: "out" }
   ];
-  function addRecent(r) { RECENTS.unshift(r); }
+  function addRecent(r) {
+    RECENTS.unshift(r);
+    if (RECENTS.length > 40) RECENTS.pop();
+    Prefs.set("recents", RECENTS);
+  }
 
   const KEYS = [
     ["1", ""], ["2", "ABC"], ["3", "DEF"],
@@ -4320,9 +4526,41 @@ IOS.register({
   render(root) {
     const nav = new UINav(root);
     const list = h("div", { class: "content list", style: { position: "relative" } });
-    contactListInto(nav, list, root);
+    const repaint = () => { list.innerHTML = ""; contactListInto(nav, list, root); };
+    repaint();
+
+    function addContactView() {
+      const first = kbField("First", { returnLabel: "next" });
+      const last = kbField("Last", { returnLabel: "next" });
+      const phone = kbField("Phone", { returnLabel: "Done" });
+      let im = true;
+      return navView(
+        navbar("New Contact", {
+          left: navBtn("Cancel", () => { KB.close(); nav.pop(); }),
+          right: navBtn("Done", () => {
+            KB.close();
+            const f = first._value.trim(), p = phone._value.trim();
+            if (!f && !p) return showAlert({ title: "New Contact", text: "A contact needs at least a name or a number." });
+            const c = { id: "u" + Date.now(), first: f || p, last: last._value.trim(),
+                        phone: p || "", email: "", imessage: im, fav: false };
+            CONTACTS.push(c);
+            Prefs.set("userContacts", [...Prefs.get("userContacts", []), c]);
+            Snd.sent();
+            nav.pop();
+            repaint();
+          }, "blue")
+        }),
+        h("div", "content grouped",
+          group(
+            h("div", { class: "cell static", style: { gap: "8px" } }, first),
+            h("div", { class: "cell static", style: { gap: "8px" } }, last),
+            h("div", { class: "cell static", style: { gap: "8px" } }, phone)),
+          group(cell({ label: "iMessage", right: toggle(true, v => { im = v; }), cls: "static" })),
+          h("div", "group-foot", "Saved contacts survive reboots and show up in Messages, Phone and Spotlight.")));
+    }
+
     nav.push(navView(
-      navbar("All Contacts", { left: navBtn("Groups", () => {}), right: navBtn("+", () => {}) }),
+      navbar("All Contacts", { left: navBtn("Groups", () => {}), right: navBtn("+", () => nav.push(addContactView())) }),
       list), false);
   }
 });
@@ -5498,6 +5736,12 @@ IOS.register({
         trash.addEventListener("click", e => {
           e.stopPropagation();
           showSheet([
+            { label: "Use as Wallpaper", onTap: () => {
+                Prefs.set("wallpaperData", PhotoStore.get(idxs()[pos]));
+                Prefs.set("wallpaper", "wp-custom");
+                IOS.applyWallpaper();
+                showAlert({ title: "Wallpaper Set", text: "The Skeuomorphic Texture Daemon approves of this photo." });
+              } },
             { label: "Delete Photo", style: "destructive", onTap: () => {
                 PhotoStore.remove(idxs()[pos]);
                 v.remove();
@@ -8416,6 +8660,7 @@ const ShellX = (() => {
       if (window.DND && DND.active()) {
         // silenced: straight to the missed-call ledger, screen stays dark
         Notify.push("phone", name || number || "Unknown", "Missed Call · Do Not Disturb");
+        typeof PhoneApp !== "undefined" && PhoneApp.addRecent({ name: name || number || "Unknown", time: fmtTime(new Date()), type: "missed" });
         return;
       }
       Snd.ringtone(); ringIv = setInterval(() => Snd.ringtone(), 2600);
@@ -8426,11 +8671,13 @@ const ShellX = (() => {
           h("button", { class: "call-end", style: { width: "126px", margin: 0 }, onclick: () => {
             stop();
             fetchCtl("hangup", callId);
+            typeof PhoneApp !== "undefined" && PhoneApp.addRecent({ name: name || number || "Unknown", time: fmtTime(new Date()), type: "missed" });
           } }, "Decline"),
           h("button", { class: "call-end", style: { width: "126px", margin: 0,
             background: "linear-gradient(#b3e389,#529f22)", borderColor: "#2f6b12" }, onclick: () => {
             stop();
             fetchCtl("accept", callId);
+            typeof PhoneApp !== "undefined" && PhoneApp.addRecent({ name: name || number || "Unknown", time: fmtTime(new Date()), type: "in" });
             inCallOverlay(name || number);
           } }, "Answer")));
       screen.append(ui);

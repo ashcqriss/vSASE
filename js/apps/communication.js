@@ -182,10 +182,42 @@ const MessagesApp = (() => {
   }
 
   function composeSheet() {
-    showSheet([
-      ...CONTACTS.slice(0, 3).map(c => ({ label: contactName(c), onTap: () => openThreadFor(c.id) })),
-      { label: "Cancel", style: "cancel" }
-    ]);
+    /* a real New Message screen: pick any contact, or type any number */
+    const sug = h("div", { class: "content list", style: { flex: "1" } });
+    function paintSug(q) {
+      sug.innerHTML = "";
+      const ql = (q || "").toLowerCase();
+      CONTACTS.filter(c => !ql || contactName(c).toLowerCase().includes(ql) || c.phone.replace(/\D/g, "").includes(ql.replace(/\D/g, "") || " "))
+        .slice(0, 9)
+        .forEach(c => sug.append(cell({ label: contactName(c), value: c.phone,
+          onTap: () => { KB.close(); nav.pop(); openThreadFor(c.id); } })));
+    }
+    const to = kbField("To: name or number", {
+      returnLabel: "Go", blueReturn: true,
+      onChange: paintSug,
+      onReturn: v => {
+        KB.close();
+        const q = v.trim();
+        if (!q) return;
+        let c = CONTACTS.find(x => contactName(x).toLowerCase() === q.toLowerCase()) || contactByNumber(q);
+        if (!c) {
+          const digits = q.replace(/\D/g, "");
+          if (digits.length < 3)
+            return showAlert({ title: "Messages", text: "Type a contact name, or a phone number to start a new conversation." });
+          c = { id: "u" + digits, first: q, last: "", phone: q, email: "", imessage: false, fav: false };
+          CONTACTS.push(c);
+          Prefs.set("userContacts", [...Prefs.get("userContacts", []), c]);
+        }
+        nav.pop();
+        openThreadFor(c.id);
+      }
+    });
+    paintSug("");
+    nav.push(navView(
+      navbar("New Message", { left: navBtn("Cancel", () => { KB.close(); nav.pop(); }) }),
+      h("div", "searchbar", to),
+      sug));
+    setTimeout(() => KB.open(to), 120);
   }
 
   function bubbleEl(t, m) {
@@ -330,14 +362,18 @@ const MessagesApp = (() => {
    ================================================================= */
 
 const PhoneApp = (() => {
-  const RECENTS = [
+  const RECENTS = Prefs.get("recents", null) || [
     { name: "Mom", time: "9:15 AM", type: "in" },
     { name: "Kate Bell", time: "Yesterday", type: "missed" },
     { name: "Natalia Maric", time: "Yesterday", type: "out" },
     { name: "(555) 284-1103", time: "Tuesday", type: "missed" },
     { name: "Zach Wood", time: "Monday", type: "out" }
   ];
-  function addRecent(r) { RECENTS.unshift(r); }
+  function addRecent(r) {
+    RECENTS.unshift(r);
+    if (RECENTS.length > 40) RECENTS.pop();
+    Prefs.set("recents", RECENTS);
+  }
 
   const KEYS = [
     ["1", ""], ["2", "ABC"], ["3", "DEF"],
@@ -490,9 +526,41 @@ IOS.register({
   render(root) {
     const nav = new UINav(root);
     const list = h("div", { class: "content list", style: { position: "relative" } });
-    contactListInto(nav, list, root);
+    const repaint = () => { list.innerHTML = ""; contactListInto(nav, list, root); };
+    repaint();
+
+    function addContactView() {
+      const first = kbField("First", { returnLabel: "next" });
+      const last = kbField("Last", { returnLabel: "next" });
+      const phone = kbField("Phone", { returnLabel: "Done" });
+      let im = true;
+      return navView(
+        navbar("New Contact", {
+          left: navBtn("Cancel", () => { KB.close(); nav.pop(); }),
+          right: navBtn("Done", () => {
+            KB.close();
+            const f = first._value.trim(), p = phone._value.trim();
+            if (!f && !p) return showAlert({ title: "New Contact", text: "A contact needs at least a name or a number." });
+            const c = { id: "u" + Date.now(), first: f || p, last: last._value.trim(),
+                        phone: p || "", email: "", imessage: im, fav: false };
+            CONTACTS.push(c);
+            Prefs.set("userContacts", [...Prefs.get("userContacts", []), c]);
+            Snd.sent();
+            nav.pop();
+            repaint();
+          }, "blue")
+        }),
+        h("div", "content grouped",
+          group(
+            h("div", { class: "cell static", style: { gap: "8px" } }, first),
+            h("div", { class: "cell static", style: { gap: "8px" } }, last),
+            h("div", { class: "cell static", style: { gap: "8px" } }, phone)),
+          group(cell({ label: "iMessage", right: toggle(true, v => { im = v; }), cls: "static" })),
+          h("div", "group-foot", "Saved contacts survive reboots and show up in Messages, Phone and Spotlight.")));
+    }
+
     nav.push(navView(
-      navbar("All Contacts", { left: navBtn("Groups", () => {}), right: navBtn("+", () => {}) }),
+      navbar("All Contacts", { left: navBtn("Groups", () => {}), right: navBtn("+", () => nav.push(addContactView())) }),
       list), false);
   }
 });

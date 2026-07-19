@@ -113,15 +113,23 @@ it after editing `index.html`, `css/` or `js/`.
 ## What's inside
 
 **System** — Arch kernel boot log → Apple logo → slide-to-unlock (drag it for
-real) → two-page springboard with dock, badges and swipe navigation. Live
-status bar with per-app tinting, on-screen QWERTY keyboard (hardware keyboard
-works too), iOS 6 alerts/action sheets/nav stacks/toggles, wallpaper picker,
-a brightness slider that really dims the screen, sleep/wake.
+real) → multi-page springboard with dock, badges and swipe navigation.
+Long-press for wiggle mode, then **drag icons to rearrange them** — live
+grid reflow, drag to a screen edge to change page, and the layout survives
+reboots. Live status bar with per-app tinting, on-screen QWERTY keyboard
+(hardware keyboard works too), iOS 6 alerts/action sheets/nav stacks/toggles,
+wallpaper picker (any photo from your Camera Roll works: viewer → Use as
+Wallpaper), a brightness slider that really dims the screen, a working
+**volume rocker** with the translucent bezel HUD that actually scales every
+synthesized sound, sleep/wake.
 
 **Telephoning** — Favorites / Recents / Contacts / Keypad / Voicemail, DTMF
 tones, live contact lookup while dialing, full in-call screen. Calls go
 through ModemManager when a modem is present, otherwise they're simulated —
-either way they land in Recents.
+either way they land in a Recents log that survives reboots (answered,
+outgoing, missed, and Do-Not-Disturbed alike). Contacts can be added
+on-device and show up everywhere; Messages composes to any contact or raw
+number and starts a real thread.
 
 **Messages** — blue iMessage vs green SMS bubbles per contact, photo bubbles,
 "Delivered" receipts, typing indicator, contacts who text back. Real SMS via

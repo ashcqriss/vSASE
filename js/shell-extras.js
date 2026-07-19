@@ -449,6 +449,7 @@ const ShellX = (() => {
       if (window.DND && DND.active()) {
         // silenced: straight to the missed-call ledger, screen stays dark
         Notify.push("phone", name || number || "Unknown", "Missed Call · Do Not Disturb");
+        typeof PhoneApp !== "undefined" && PhoneApp.addRecent({ name: name || number || "Unknown", time: fmtTime(new Date()), type: "missed" });
         return;
       }
       Snd.ringtone(); ringIv = setInterval(() => Snd.ringtone(), 2600);
@@ -459,11 +460,13 @@ const ShellX = (() => {
           h("button", { class: "call-end", style: { width: "126px", margin: 0 }, onclick: () => {
             stop();
             fetchCtl("hangup", callId);
+            typeof PhoneApp !== "undefined" && PhoneApp.addRecent({ name: name || number || "Unknown", time: fmtTime(new Date()), type: "missed" });
           } }, "Decline"),
           h("button", { class: "call-end", style: { width: "126px", margin: 0,
             background: "linear-gradient(#b3e389,#529f22)", borderColor: "#2f6b12" }, onclick: () => {
             stop();
             fetchCtl("accept", callId);
+            typeof PhoneApp !== "undefined" && PhoneApp.addRecent({ name: name || number || "Unknown", time: fmtTime(new Date()), type: "in" });
             inCallOverlay(name || number);
           } }, "Answer")));
       screen.append(ui);

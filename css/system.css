@@ -142,6 +142,7 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   background-size: 3px 3px, 5px 5px;
   background-position: 0 0, 1px 2px;
 }
+.wp-custom { background-size: cover; background-position: center; background-color: #000; }
 .wp-rays {
   background:
     repeating-conic-gradient(from 200deg at 80% -10%, rgba(255,255,255,.05) 0 4deg, transparent 4deg 9deg),
@@ -343,6 +344,39 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   box-shadow: 0 1px 1px rgba(0,0,0,.4);
 }
 #page-dots i.on { background: rgba(255,255,255,.95); }
+
+/* wiggle-mode drag */
+.drag-ghost {
+  position: absolute; z-index: 260; width: 57px;
+  pointer-events: none;
+  transform: scale(1.14);
+  opacity: .92;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.55));
+}
+.sb-icon.drag-src { opacity: .3; }
+
+/* volume rocker HUD — the translucent bezel */
+.vol-hud {
+  position: absolute; left: 50%; top: 42%; z-index: 340;
+  transform: translate(-50%, -50%);
+  width: 170px; padding: 18px 0 16px;
+  border-radius: 18px;
+  background: rgba(28,30,38,.82);
+  border: 1px solid rgba(255,255,255,.22);
+  box-shadow: 0 8px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+.vol-hud.hidden { display: flex; opacity: 0; visibility: hidden; }
+.vol-ico { color: #e8ecf2; }
+.vol-ico svg { width: 34px; height: 34px; }
+.vol-bars { display: flex; gap: 3px; }
+.vol-bars i {
+  width: 6px; height: 9px; border-radius: 1.5px;
+  background: rgba(255,255,255,.22);
+}
+.vol-bars i.on { background: #fff; box-shadow: 0 0 3px rgba(255,255,255,.5); }
 /* iOS 6 detail: the row starts with a tiny magnifier for the search page */
 #page-dots .dot-mag {
   display: inline-flex; color: rgba(255,255,255,.5);

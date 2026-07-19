@@ -278,14 +278,36 @@ const IOS = (() => {
   let editMode = false; // wiggle mode: long-press an icon, ✕ removes installed apps
 
   function currentPages() {
-    const pages = HOME_PAGES.map(p => [...p]);
+    const known = id => !!apps[id];
     const extra = (typeof AppMarket !== "undefined")
-      ? AppMarket.installed().filter(id => apps[id]) : [];
-    for (const id of extra) {
-      if (pages[pages.length - 1].length >= 16) pages.push([]);
-      pages[pages.length - 1].push(id);
+      ? AppMarket.installed().filter(known) : [];
+    const wanted = [...HOME_PAGES.flat(), ...extra];
+    const saved = Prefs.get("homeLayout", null);
+    let pages;
+    if (Array.isArray(saved) && saved.length) {
+      // user-arranged order wins; drop apps that no longer exist/are uninstalled
+      const valid = new Set(wanted);
+      pages = saved.map(p => p.filter(id => valid.has(id)));
+    } else {
+      pages = HOME_PAGES.map(p => [...p]);
     }
-    return pages;
+    const present = new Set(pages.flat());
+    for (const id of wanted) {
+      if (present.has(id)) continue;
+      if (!pages.length || pages[pages.length - 1].length >= 16) pages.push([]);
+      pages[pages.length - 1].push(id);
+      present.add(id);
+    }
+    pages = pages.filter(p => p.length);
+    return pages.length ? pages : HOME_PAGES.map(p => [...p]);
+  }
+
+  /* the DOM order after a drag IS the layout */
+  function saveLayout() {
+    const layout = [...$id("pages").children]
+      .map(pg => [...pg.querySelectorAll(".sb-icon")].map(el => el.dataset.app))
+      .filter(p => p.length);
+    Prefs.set("homeLayout", layout);
   }
 
   /* ---- status bar ---- */
@@ -313,7 +335,14 @@ const IOS = (() => {
 
   /* ---- wallpaper & brightness ---- */
   function applyWallpaper() {
-    wallpaper.className = Prefs.get("wallpaper", "wp-water");
+    const wp = Prefs.get("wallpaper", "wp-water");
+    if (wp === "wp-custom") {
+      wallpaper.className = "wp-custom";
+      wallpaper.style.backgroundImage = "url(" + Prefs.get("wallpaperData", "") + ")";
+    } else {
+      wallpaper.style.backgroundImage = "";
+      wallpaper.className = wp;
+    }
   }
   function applyBrightness() {
     $id("dimmer").style.opacity = (1 - Prefs.get("brightness", 100) / 100) * 0.75;
@@ -344,8 +373,8 @@ const IOS = (() => {
     e.addEventListener("click", () => { if (!editMode) open(id); });
     // long-press enters wiggle mode
     let lp = null;
-    e.addEventListener("pointerdown", () => {
-      if (editMode) return;
+    e.addEventListener("pointerdown", ev => {
+      if (editMode) { startIconDrag(e, ev); return; }
       lp = setTimeout(() => { editMode = true; Snd.click(); buildHome(); }, 650);
     });
     const cancelLp = () => { if (lp) { clearTimeout(lp); lp = null; } };
@@ -355,7 +384,81 @@ const IOS = (() => {
     return e;
   }
 
+  /* ---- wiggle-mode drag to rearrange (persists across reboots) ---- */
+  let iconDragging = false;
+  function startIconDrag(icon, ev) {
+    if (ev.target.closest(".sb-remove")) return; // the ✕ stays a tap
+    const screenEl = $id("screen");
+    const x0 = ev.clientX, y0 = ev.clientY;
+    let ghost = null, lastFlip = 0;
+    try { icon.setPointerCapture(ev.pointerId); } catch (e2) { /* older engines */ }
+
+    function lift(mv) {
+      iconDragging = true;
+      const r = icon.getBoundingClientRect(), sr = screenEl.getBoundingClientRect();
+      ghost = icon.cloneNode(true);
+      ghost.classList.remove("wiggling");
+      ghost.classList.add("drag-ghost");
+      ghost.style.left = (r.left - sr.left) + "px";
+      ghost.style.top = (r.top - sr.top) + "px";
+      screenEl.append(ghost);
+      icon.classList.add("drag-src");
+      move(mv);
+    }
+
+    function move(mv) {
+      const sr = screenEl.getBoundingClientRect();
+      ghost.style.left = (mv.clientX - sr.left - 28) + "px";
+      ghost.style.top = (mv.clientY - sr.top - 40) + "px";
+
+      // hovering a screen edge flips the page (once per 600ms)
+      const sx = mv.clientX - sr.left;
+      const now = Date.now();
+      const pageCount = $id("pages").children.length;
+      if (now - lastFlip > 600) {
+        if (sx < 26 && page > 0) { page--; snapPage(); lastFlip = now; }
+        else if (sx > sr.width - 26 && page < pageCount - 1) { page++; snapPage(); lastFlip = now; }
+      }
+
+      // live reflow: slot the real (dimmed) icon where the pointer points
+      const under = document.elementsFromPoint(mv.clientX, mv.clientY);
+      const target = under.find(el => el.classList && el.classList.contains("sb-icon")
+        && el !== icon && !el.classList.contains("drag-ghost"));
+      if (target && target.parentElement) {
+        const tr = target.getBoundingClientRect();
+        const after = mv.clientX > tr.left + tr.width / 2;
+        target.parentElement.insertBefore(icon, after ? target.nextSibling : target);
+      } else {
+        const pg = under.find(el => el.classList && el.classList.contains("page"));
+        if (pg && icon.parentElement !== pg && pg.querySelectorAll(".sb-icon").length < 16)
+          pg.append(icon);
+      }
+    }
+
+    function onMove(mv) {
+      if (!ghost && Math.hypot(mv.clientX - x0, mv.clientY - y0) < 8) return;
+      if (!ghost) lift(mv); else move(mv);
+    }
+    function onUp() {
+      // listeners live on document: pointer capture is unreliable once the
+      // pointer leaves the (wiggling) icon, and a drop must always land
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+      if (!ghost) return;
+      ghost.remove();
+      icon.classList.remove("drag-src");
+      iconDragging = false;
+      saveLayout();
+      Snd.click();
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+  }
+
   function buildHome() {
+    document.querySelectorAll(".drag-ghost").forEach(g => g.remove());
     const layout = currentPages();
     if (page >= layout.length) page = layout.length - 1;
     const pages = $id("pages");
@@ -388,9 +491,13 @@ const IOS = (() => {
     pages.addEventListener("click", e => {
       if (swiped) { e.stopPropagation(); e.preventDefault(); swiped = false; }
     }, true);
-    pages.addEventListener("pointerdown", e => { x0 = e.clientX; dx = 0; swiped = false; });
+    pages.addEventListener("pointerdown", e => {
+      // in wiggle mode a press on an icon is a drag, not a page swipe
+      if (editMode && e.target.closest(".sb-icon")) { x0 = null; return; }
+      x0 = e.clientX; dx = 0; swiped = false;
+    });
     pages.addEventListener("pointermove", e => {
-      if (x0 === null) return;
+      if (x0 === null || iconDragging) return;
       dx = e.clientX - x0;
       if (Math.abs(dx) > 8) {
         pages.style.transition = "none";
@@ -401,7 +508,7 @@ const IOS = (() => {
       if (x0 === null) return;
       swiped = Math.abs(dx) > 10;
       pages.style.transition = "";
-      if (dx < -50 && page < HOME_PAGES.length - 1) page++;
+      if (dx < -50 && page < pages.children.length - 1) page++;
       else if (dx > 50 && page > 0) page--;
       snapPage();
       x0 = null;
@@ -517,6 +624,27 @@ const IOS = (() => {
     if (state === "asleep") wake(); else sleep();
   });
   $id("screen-off").addEventListener("click", wake);
+
+  /* ---- volume rocker + the translucent bezel HUD ---- */
+  (() => {
+    const hud = h("div", { class: "vol-hud hidden" },
+      h("div", { class: "vol-ico", html: Glyphs.speaker() }),
+      h("div", "vol-bars", Array.from({ length: 16 }, () => h("i"))));
+    $id("screen").append(hud);
+    let hideT = null;
+    function bump(delta) {
+      if (state === "off" || state === "boot") return;
+      const v = Math.max(0, Math.min(16, Prefs.get("volume", 12) + delta));
+      Prefs.set("volume", v);
+      [...hud.querySelectorAll(".vol-bars i")].forEach((b, i) => b.classList.toggle("on", i < v));
+      hud.classList.remove("hidden");
+      clearTimeout(hideT);
+      hideT = setTimeout(() => hud.classList.add("hidden"), 1200);
+      Snd.click();
+    }
+    document.querySelector(".dev-vol-up").addEventListener("click", () => bump(2));
+    document.querySelector(".dev-vol-down").addEventListener("click", () => bump(-2));
+  })();
 
   return {
     register(def) { apps[def.id] = def; },

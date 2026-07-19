@@ -62,6 +62,12 @@ IOS.register({
         trash.addEventListener("click", e => {
           e.stopPropagation();
           showSheet([
+            { label: "Use as Wallpaper", onTap: () => {
+                Prefs.set("wallpaperData", PhotoStore.get(idxs()[pos]));
+                Prefs.set("wallpaper", "wp-custom");
+                IOS.applyWallpaper();
+                showAlert({ title: "Wallpaper Set", text: "The Skeuomorphic Texture Daemon approves of this photo." });
+              } },
             { label: "Delete Photo", style: "destructive", onTap: () => {
                 PhotoStore.remove(idxs()[pos]);
                 v.remove();

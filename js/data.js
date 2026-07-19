@@ -376,6 +376,9 @@ const Snd = (() => {
     return ctx;
   }
   function tone(freq, dur, { type = "sine", gain = 0.12, when = 0, freq2 = null } = {}) {
+    const master = (typeof Prefs !== "undefined" ? Prefs.get("volume", 12) : 12) / 12;
+    if (master <= 0) return;
+    gain *= master;
     const a = ac(); if (!a) return;
     const t0 = a.currentTime + when;
     const o = a.createOscillator(), g = a.createGain();
@@ -444,3 +447,8 @@ const Prefs = {
     try { localStorage.setItem("ios6." + k, JSON.stringify(v)); } catch (e) { /* private mode */ }
   }
 };
+
+/* contacts the user added on-device (Contacts app > +) survive reboots */
+Prefs.get("userContacts", []).forEach(c => {
+  if (c && c.id && !CONTACTS.some(x => x.id === c.id)) CONTACTS.push(c);
+});
