@@ -139,6 +139,7 @@ IOS.register({
   statusbar: "black",
   onClose() {
     clearInterval(this._iv); clearInterval(this._recIv);
+    clearTimeout(this._zoomT); clearTimeout(this._focusT);
     if (this._rec && this._rec.state === "recording") { try { this._rec.stop(); } catch (e) { /* done */ } }
     if (this._stream) this._stream.getTracks().forEach(t => t.stop());
     this._rec = this._stream = null;
@@ -199,6 +200,7 @@ IOS.register({
           usingReal = true;
           scene.style.display = "none";
           videoEl.style.display = "block";
+          applyTorch();
           return;
         } catch (e) { /* try the next constraint set */ }
       }
@@ -207,26 +209,93 @@ IOS.register({
       scene.style.display = "block";
     }
 
-    /* current frame (real camera or scene) as a 320x400 canvas */
+    /* current frame (real camera or scene) as a 320x400 canvas,
+       honouring digital zoom and the HDR "pipeline" */
+    let zoom = 1, flashMode = "auto", gridOn = false, hdrOn = false;
     function frameCanvas() {
       const c = document.createElement("canvas");
       c.width = 320; c.height = 400;
       const cg = c.getContext("2d");
+      if (hdrOn) cg.filter = "contrast(1.15) saturate(1.3) brightness(1.05)";
       if (usingReal && videoEl.videoWidth) {
         const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-        const s = Math.max(320 / vw, 400 / vh);
+        const s = Math.max(320 / vw, 400 / vh) * zoom;
         cg.drawImage(videoEl, (320 - vw * s) / 2, (400 - vh * s) / 2, vw * s, vh * s);
-      } else cg.drawImage(scene, 0, 0);
+      } else {
+        cg.drawImage(scene, (320 - 320 * zoom) / 2, (400 - 400 * zoom) / 2, 320 * zoom, 400 * zoom);
+      }
       return c;
+    }
+    function frameIsDark() {
+      const c = document.createElement("canvas");
+      c.width = 16; c.height = 20;
+      const cg = c.getContext("2d");
+      cg.drawImage(usingReal && videoEl.videoWidth ? videoEl : scene, 0, 0, 16, 20);
+      try {
+        const d = cg.getImageData(0, 0, 16, 20).data;
+        let lum = 0;
+        for (let i = 0; i < d.length; i += 4) lum += d[i] * 0.3 + d[i + 1] * 0.6 + d[i + 2] * 0.1;
+        return lum / (d.length / 4) < 70;
+      } catch (e) { return false; }
+    }
+    function applyTorch() {
+      // hardware flash where the camera actually has one
+      if (!def._stream) return;
+      const track = def._stream.getVideoTracks()[0];
+      if (track && track.applyConstraints)
+        track.applyConstraints({ advanced: [{ torch: flashMode === "on" }] }).catch(() => {});
     }
 
     const iris = h("div", "cam-iris");
+    const flashFx = h("div", "cam-flashfx");
     const thumb = h("div", "cam-thumb");
     thumb.append(h("img", { src: PhotoStore.get(PhotoStore.count() - 1) }));
     thumb.addEventListener("click", () => IOS.open(recordMode ? "videos" : "photos"));
 
     const recDot = h("div", "cam-recdot hidden", h("i"), h("span", null, "00:00"));
     const shutter = h("div", { class: "cam-shutter", html: Glyphs.camera() });
+
+    /* ---- top chrome: flash · Options · flip ---- */
+    const flashBtn = h("button", "cam-top-btn", "⚡ Auto");
+    flashBtn.addEventListener("click", () => {
+      Snd.click();
+      flashMode = flashMode === "auto" ? "on" : flashMode === "on" ? "off" : "auto";
+      flashBtn.textContent = "⚡ " + (flashMode === "auto" ? "Auto" : flashMode === "on" ? "On" : "Off");
+      flashBtn.classList.toggle("lit", flashMode === "on");
+      applyTorch();
+    });
+
+    const hdrBadge = h("div", "cam-hdr-badge hidden", "HDR On");
+    const gridEl = h("div", "cam-grid hidden");
+    const optPanel = h("div", "cam-options hidden",
+      h("div", "cam-opt-row", h("span", null, "Grid"),
+        toggle(false, v => { gridOn = v; gridEl.classList.toggle("hidden", !v); })),
+      h("div", "cam-opt-row", h("span", null, "HDR"),
+        toggle(false, v => { hdrOn = v; hdrBadge.classList.toggle("hidden", !v); })));
+    const optBtn = h("button", "cam-top-btn cam-opt-btn", "Options");
+    optBtn.addEventListener("click", () => { Snd.click(); optPanel.classList.toggle("hidden"); });
+
+    const flip = h("div", { class: "cam-flip", html: Glyphs.flip() });
+    flip.addEventListener("click", () => {
+      Snd.click();
+      if (!usingReal || recording) return;
+      facing = facing === "environment" ? "user" : "environment";
+      openCamera();
+    });
+
+    /* ---- tap to focus ---- */
+    const reticle = h("div", "cam-reticle hidden");
+    /* ---- digital zoom ---- */
+    const zoomWrap = h("div", "cam-zoomwrap", scene, videoEl);
+    const zoomInput = h("input", { type: "range", min: 100, max: 300, value: 100 });
+    zoomInput.addEventListener("input", () => {
+      zoom = zoomInput.value / 100;
+      zoomWrap.style.transform = "scale(" + zoom + ")";
+      zoomSlider.classList.add("active");
+      clearTimeout(def._zoomT);
+      def._zoomT = setTimeout(() => zoomSlider.classList.remove("active"), 1800);
+    });
+    const zoomSlider = h("div", "cam-zoom", h("span", null, "−"), zoomInput, h("span", null, "+"));
 
     const modeSw = h("div", { class: "cam-mode", html:
       `<span class="cm-still">${Glyphs.camera()}</span><span class="cm-vid">${Glyphs.video()}</span>` });
@@ -279,6 +348,11 @@ IOS.register({
     shutter.addEventListener("click", () => {
       Snd.key();
       if (recordMode) { recording ? stopRecording() : startRecording(); return; }
+      const flashing = flashMode === "on" || (flashMode === "auto" && frameIsDark());
+      if (flashing) {
+        flashFx.classList.add("fire");
+        setTimeout(() => flashFx.classList.remove("fire"), 320);
+      }
       iris.classList.add("snap");
       setTimeout(() => {
         PhotoStore.add(frameCanvas().toDataURL("image/jpeg", 0.85));
@@ -288,18 +362,25 @@ IOS.register({
       }, 300);
     });
 
-    const flip = h("div", { class: "cam-flip", html: Glyphs.flip() });
-    flip.addEventListener("click", () => {
-      Snd.click();
-      if (!usingReal || recording) return;
-      facing = facing === "environment" ? "user" : "environment";
-      openCamera();
+    const finder = h("div", "cam-finder", zoomWrap, gridEl, reticle, hdrBadge, recDot, zoomSlider, iris, flashFx);
+    finder.addEventListener("click", e => {
+      // tap to focus: reticle blinks in at the tap point, exposure settles
+      if (e.target.closest(".cam-zoom") || e.target.closest(".cam-options")) return;
+      const r = finder.getBoundingClientRect();
+      reticle.style.left = Math.max(8, Math.min(r.width - 68, e.clientX - r.left - 30)) + "px";
+      reticle.style.top = Math.max(8, Math.min(r.height - 68, e.clientY - r.top - 30)) + "px";
+      reticle.classList.remove("hidden", "focusing");
+      void reticle.offsetWidth;
+      reticle.classList.add("focusing");
+      clearTimeout(def._focusT);
+      def._focusT = setTimeout(() => reticle.classList.add("hidden"), 1100);
     });
 
     root.append(
-      h("div", "cam-finder", scene, videoEl, h("div", "cam-reticle"), recDot, iris),
-      h("div", "cam-bar", thumb, shutter,
-        h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" } }, flip, modeSw)));
+      h("div", "cam-topbar", flashBtn, optBtn, flip),
+      optPanel,
+      finder,
+      h("div", "cam-bar", thumb, shutter, modeSw));
     openCamera();
   }
 });

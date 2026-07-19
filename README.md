@@ -104,6 +104,12 @@ python -m http.server 8000    # or just open index.html
 Everything works in simulation mode: click the screen to power on, drag the
 slider to unlock. Append `?kiosk=1` to preview the fullscreen shell layout.
 
+**Just want one file?** Open `preview.html` — the entire OS (all CSS and
+JS) inlined into a single self-contained document. It needs nothing next to
+it, so it survives any previewer, email attachment, or `curl -O`. It is
+generated from the real sources by `tools/build-standalone.sh`; regenerate
+it after editing `index.html`, `css/` or `js/`.
+
 ## What's inside
 
 **System** — Arch kernel boot log → Apple logo → slide-to-unlock (drag it for
@@ -149,6 +155,16 @@ any page, via Share → "Open in Full Browser (Firefox)" — are handed to the
 fullscreen under cage (`POST /browser`, loopback-only, URL-validated,
 firefox → chromium → epiphany fallback), and closing it drops you back on
 the springboard. The Terminal's `firefox <url>` does the same.
+
+**A real Camera** — live viewfinder from the actual camera (canvas scene
+fallback when there is none), with the full iOS 6 chrome: flash
+Auto/On/Off (hardware torch where the sensor has one, screen-flash
+otherwise, auto mode meters the actual frame brightness), an Options
+drawer with rule-of-thirds Grid and an HDR pipeline that tone-boosts
+captures, tap-to-focus with the blinking reticle, a digital zoom slider
+that is honoured in the saved photo, an iris-blade shutter animation,
+video recording with a live timer, and a camera-roll thumbnail that jumps
+straight to your shots.
 
 **Deep apps** — Music has a library of three synthesized original tracks
 with working prev/next; Videos plays procedurally-generated films with
