@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 node_modules/
+# Local artwork drop-ins: used by the shell, never published from this repo
+icons/*.png
+wallpapers/*
+!wallpapers/README.md

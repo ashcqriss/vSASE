@@ -574,22 +574,48 @@ IOS.register({
     const wallpaperView = sub("Brightness & Wallpaper", () => {
       const cur = Prefs.get("wallpaper", "wp-water");
       const thumbs = [["wp-water", "Water"], ["wp-linen", "Linen"], ["wp-rays", "Purple"], ["wp-green", "Felt"]];
+      const row = h("div", "wp-row", thumbs.map(([cls, label]) => {
+        const t = h("div", { class: "wp-thumb " + cls + (cur === cls ? " sel" : ""), title: label });
+        t.addEventListener("click", () => {
+          Snd.click();
+          Prefs.set("wallpaper", cls);
+          IOS.applyWallpaper();
+          row.querySelectorAll(".sel").forEach(x => x.classList.remove("sel"));
+          t.classList.add("sel");
+        });
+        return t;
+      }));
+      /* drop-in originals: wallpapers/wp1..wp8.(png|jpg) on disk appear here
+         automatically — the repo ships none, your local copies never leave
+         your machine (the folder is gitignored) */
+      for (let i = 1; i <= 8; i++) {
+        for (const ext of ["png", "jpg"]) {
+          const src = "wallpapers/wp" + i + "." + ext;
+          const probe = new Image();
+          probe.onload = () => {
+            const t = h("div", { class: "wp-thumb wp-file-thumb" +
+              (cur === "wp-file" && Prefs.get("wallpaperFile", "") === src ? " sel" : ""), title: "wp" + i });
+            t.style.backgroundImage = "url(" + src + ")";
+            t.addEventListener("click", () => {
+              Snd.click();
+              Prefs.set("wallpaper", "wp-file");
+              Prefs.set("wallpaperFile", src);
+              IOS.applyWallpaper();
+              row.querySelectorAll(".sel").forEach(x => x.classList.remove("sel"));
+              t.classList.add("sel");
+            });
+            row.append(t);
+          };
+          probe.src = src;
+        }
+      }
       return h("div", "content grouped",
         h("div", "group-label", "Brightness"),
         group(h("div", { class: "cell static", style: { padding: "8px 12px" } },
           slider(Prefs.get("brightness", 100), v => { Prefs.set("brightness", v); IOS.applyBrightness(); }))),
         h("div", "group-label", "Wallpaper"),
-        group(h("div", "wp-row", thumbs.map(([cls, label]) => {
-          const t = h("div", { class: "wp-thumb " + cls + (cur === cls ? " sel" : ""), title: label });
-          t.addEventListener("click", () => {
-            Snd.click();
-            Prefs.set("wallpaper", cls);
-            IOS.applyWallpaper();
-            t.parentElement.querySelectorAll(".sel").forEach(x => x.classList.remove("sel"));
-            t.classList.add("sel");
-          });
-          return t;
-        }))));
+        group(row),
+        h("div", "group-foot", "Drop wallpaper files into wallpapers/ (wp1.png … wp8.jpg) and they appear here. A photo from your Camera Roll works too: Photos → viewer → Use as Wallpaper."));
     });
 
     /* tone pickers: tap = select + live preview, checkmark follows */

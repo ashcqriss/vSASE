@@ -123,6 +123,14 @@ Wallpaper), a brightness slider that really dims the screen, a working
 **volume rocker** with the translucent bezel HUD that actually scales every
 synthesized sound, sleep/wake.
 
+**Bring the real artwork (locally)** — the shell prefers your files over
+its built-in recreations: PNGs dropped into `icons/` replace home-screen
+icons by filename, and images dropped into `wallpapers/` (wp1–wp8) appear
+as extra tiles in Settings → Brightness & Wallpaper. Both folders are
+gitignored on purpose: era-original Apple artwork you download stays on
+your machine and is never committed or pushed by this repo. See
+`icons/README.md` and `wallpapers/README.md`.
+
 **Telephoning** — Favorites / Recents / Contacts / Keypad / Voicemail, DTMF
 tones, live contact lookup while dialing, full in-call screen. Calls go
 through ModemManager when a modem is present, otherwise they're simulated —

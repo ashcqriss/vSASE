@@ -13,8 +13,10 @@ Recognized filenames (one per app):
     voicememos.png terminal.png phone.png     mail.png       safari.png
     music.png
 
-To use the recreated iOS artwork from The OldOS Project
-(github.com/zzanehip/The-OldOS-Project), clone it on your machine, pull the
-home-screen images out of `OldOS/Assets.xcassets`, rename them to the
-filenames above and commit them here. Missing files simply keep the
+To use original-era artwork (for example the images inside The OldOS
+Project's `OldOS/Assets.xcassets`, github.com/zzanehip/The-OldOS-Project),
+download it yourself on your own machine, rename the files to the names
+above and drop them in this folder. **Keep them local** — that artwork is
+Apple's, so this folder is gitignored and files you place here are used by
+the OS but never committed or pushed. Missing files simply keep the
 built-in SVG recreation — mixing the two is fine.

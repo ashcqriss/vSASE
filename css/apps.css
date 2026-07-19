@@ -857,7 +857,8 @@
   cursor: pointer; flex: 0 0 62px;
 }
 .wp-thumb.sel { outline: 3px solid #2f6fd0; }
-.wp-row { display: flex; gap: 12px; padding: 12px; }
+.wp-thumb.wp-file-thumb { background-size: cover; background-position: center; }
+.wp-row { display: flex; gap: 12px; padding: 12px; flex-wrap: wrap; }
 
 /* ================= App Store installs & wiggle mode ================= */
 

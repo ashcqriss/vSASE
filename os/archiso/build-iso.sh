@@ -39,6 +39,10 @@ install -Dm644 "$REPO/os/systemd/ios6d.service" \
 echo ":: installing the SpringBoard UI"
 mkdir -p "$PROFILE/airootfs/usr/share/ios6"
 cp -r "$REPO/index.html" "$REPO/css" "$REPO/js" "$PROFILE/airootfs/usr/share/ios6/"
+# local artwork drop-ins ride along into YOUR image (gitignored in the repo)
+for d in icons wallpapers; do
+  [ -d "$REPO/$d" ] && cp -r "$REPO/$d" "$PROFILE/airootfs/usr/share/ios6/"
+done
 
 echo ":: enabling services"
 WANTS="$PROFILE/airootfs/etc/systemd/system/multi-user.target.wants"

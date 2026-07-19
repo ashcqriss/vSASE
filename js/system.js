@@ -339,6 +339,10 @@ const IOS = (() => {
     if (wp === "wp-custom") {
       wallpaper.className = "wp-custom";
       wallpaper.style.backgroundImage = "url(" + Prefs.get("wallpaperData", "") + ")";
+    } else if (wp === "wp-file") {
+      // a drop-in file from wallpapers/ on disk
+      wallpaper.className = "wp-custom";
+      wallpaper.style.backgroundImage = "url(" + Prefs.get("wallpaperFile", "") + ")";
     } else {
       wallpaper.style.backgroundImage = "";
       wallpaper.className = wp;
