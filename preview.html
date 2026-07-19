@@ -173,7 +173,7 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   font-size: 12px; font-weight: bold;
   color: #fff;
 }
-#statusbar.sb-black { background: linear-gradient(#3f3f3f, #101010 45%, #000); color: #fff; text-shadow: 0 -1px 0 rgba(0,0,0,.6); }
+#statusbar.sb-black { background: linear-gradient(#3f3f3f, #101010 45%, #000); color: #fff; text-shadow: 0 -1px 0 rgba(0,0,0,.6); box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
 #statusbar.sb-blue  { background: linear-gradient(#c9d3de, #a4b1c2 48%, #93a2b6); color: #3c455a; text-shadow: 0 1px 0 rgba(255,255,255,.6); }
 #statusbar.sb-trans { background: linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.12)); }
 
@@ -247,6 +247,7 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 .lock-top {
   position: absolute; top: 20px; left: 0; right: 0; height: 96px;
   background: linear-gradient(rgba(15,18,25,.55), rgba(15,18,25,.28) 75%, rgba(15,18,25,0));
+  border-top: 1px solid rgba(255,255,255,.12);
   text-align: center; color: #fff;
   padding-top: 12px;
   text-shadow: 0 1px 2px rgba(0,0,0,.6);
@@ -257,6 +258,7 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 .lock-bottom {
   position: absolute; bottom: 0; left: 0; right: 0; height: 96px;
   background: linear-gradient(rgba(10,12,18,0), rgba(10,12,18,.5) 40%, rgba(10,12,18,.72));
+  border-top: 1px solid rgba(255,255,255,.08);
   display: flex; align-items: center; justify-content: center;
 }
 .lock-track {
@@ -322,6 +324,15 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   box-shadow: 0 2px 3px rgba(0,0,0,.45);
   overflow: hidden;
   position: relative;
+}
+/* uniform rim light over every icon, SVG and PNG override alike */
+.sb-icon .glyph::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.25),
+    inset 0 0 0 1px rgba(255,255,255,.07),
+    inset 0 -1px 2px rgba(0,0,0,.14);
+  pointer-events: none;
 }
 .sb-icon .glyph svg { display: block; width: 100%; height: 100%; }
 .sb-icon .glyph img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -421,6 +432,14 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   transform: scaleY(-1);
   opacity: .5;
 }
+/* real mirrored reflections where the engine supports them */
+@supports (-webkit-box-reflect: below 0px) {
+  #dock-icons .sb-icon::after { display: none; }
+  #dock-icons .sb-icon .glyph {
+    -webkit-box-reflect: below 2px
+      linear-gradient(transparent 62%, rgba(255, 255, 255, 0.28));
+  }
+}
 
 /* ---------------- App layer & open animation ---------------- */
 
@@ -513,7 +532,10 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   gap: 2px; padding: 4px 0 3px;
   color: #999; font-size: 10px; letter-spacing: .01em;
   cursor: pointer;
+  text-shadow: 0 -1px 0 rgba(0,0,0,.7);
 }
+.tab .t-ico svg { filter: drop-shadow(0 -1px 0 rgba(0,0,0,.6)); }
+.tab:active { background: rgba(255,255,255,.05); }
 .tab .t-ico { font-size: 20px; line-height: 22px; height: 24px; display: flex; align-items: center; }
 .tab .t-ico svg { width: 23px; height: 23px; display: block; filter: drop-shadow(0 -1px 0 rgba(0,0,0,.6)); }
 .tab.on { color: #4ba1e8; }
@@ -526,10 +548,13 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   flex: 0 0 44px;
   background: linear-gradient(#b2bccc, #889bb3 50%, #6d84a2 51%, #7f96af);
   border-top: 1px solid #2d3852;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
   display: flex; align-items: center; justify-content: space-around;
   color: #fff;
 }
 .toolbar .tb-ico { font-size: 20px; cursor: pointer; text-shadow: 0 -1px 0 rgba(0,0,0,.4); display: flex; align-items: center; }
+.toolbar .tb-ico svg { filter: drop-shadow(0 -1px 0 rgba(0,0,0,.4)); }
+.toolbar .tb-ico:active { opacity: .55; }
 .toolbar .tb-ico svg { width: 21px; height: 21px; display: block; filter: drop-shadow(0 -1px 0 rgba(0,0,0,.4)); }
 .toolbar .tb-ico.disabled { opacity: .35; }
 
@@ -581,6 +606,8 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   position: relative;
 }
 .group .cell:first-child { box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
+/* etched separators: dark hairline below each row, white catch-light atop the next */
+.group .cell:not(:first-child) { box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
 .cell:last-child { border-bottom: none; }
 .cell.static { cursor: default; }
 .cell:not(.static):active { background: linear-gradient(#7c9ff0, #2f5bd4); color: #fff; }
@@ -2802,9 +2829,11 @@ const Icons = (() => {
     const { defs, body } = build(p);
     // the iOS 6 sheen: a bright band across the top with a convex lower edge
     const glossDefs = `<linearGradient id="${p}gloss" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.08"/></linearGradient>`;
-    const glossBody = `<path d="M0,0 h57 v19 c-13,8.5 -44,8.5 -57,0 z" fill="url(#${p}gloss)"/>`;
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.62"/>
+      <stop offset="0.72" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.13"/></linearGradient>`;
+    const glossBody = `<path d="M0,0 h57 v19 c-13,8.5 -44,8.5 -57,0 z" fill="url(#${p}gloss)"/>
+      <rect width="57" height="1" y="0" fill="#ffffff" opacity="0.35"/>`;
     return `<svg viewBox="0 0 57 57" xmlns="http://www.w3.org/2000/svg">
       <defs>${defs}${gloss ? glossDefs : ""}</defs>${body}${gloss ? glossBody : ""}</svg>`;
   }

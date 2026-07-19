@@ -19,9 +19,11 @@ const Icons = (() => {
     const { defs, body } = build(p);
     // the iOS 6 sheen: a bright band across the top with a convex lower edge
     const glossDefs = `<linearGradient id="${p}gloss" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.08"/></linearGradient>`;
-    const glossBody = `<path d="M0,0 h57 v19 c-13,8.5 -44,8.5 -57,0 z" fill="url(#${p}gloss)"/>`;
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.62"/>
+      <stop offset="0.72" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.13"/></linearGradient>`;
+    const glossBody = `<path d="M0,0 h57 v19 c-13,8.5 -44,8.5 -57,0 z" fill="url(#${p}gloss)"/>
+      <rect width="57" height="1" y="0" fill="#ffffff" opacity="0.35"/>`;
     return `<svg viewBox="0 0 57 57" xmlns="http://www.w3.org/2000/svg">
       <defs>${defs}${gloss ? glossDefs : ""}</defs>${body}${gloss ? glossBody : ""}</svg>`;
   }
