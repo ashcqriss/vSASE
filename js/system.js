@@ -367,6 +367,7 @@ const IOS = (() => {
     DOCK.forEach(id => dock.append(iconEl(id)));
     const dots = $id("page-dots");
     dots.innerHTML = "";
+    dots.append(h("span", { class: "dot-mag", html: Glyphs.search() }));
     layout.forEach((_, i) => dots.append(h("i", i === page ? "on" : "")));
     snapPage(false);
   }
@@ -376,7 +377,7 @@ const IOS = (() => {
     pages.style.transition = animate ? "" : "none";
     pages.style.transform = `translateX(${-page * 320}px)`;
     if (!animate) requestAnimationFrame(() => { pages.style.transition = ""; });
-    [...$id("page-dots").children].forEach((d, i) => d.classList.toggle("on", i === page));
+    [...$id("page-dots").querySelectorAll("i")].forEach((d, i) => d.classList.toggle("on", i === page));
   }
 
   // swipe pages

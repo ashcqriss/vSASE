@@ -173,6 +173,8 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
 .sb-carrier { font-weight: bold; letter-spacing: .02em; }
 .sb-carrier svg, .sb-batt-pct svg { width: 11px; height: 11px; vertical-align: -2px; }
 .sb-wifi { display: inline-flex; align-items: center; }
+.sb-moon { display: inline-flex; align-items: center; margin-right: 1px; }
+.sb-moon svg { display: block; }
 
 .sb-signal { display: inline-flex; align-items: flex-end; gap: 1px; height: 9px; }
 .sb-signal i {
@@ -341,6 +343,12 @@ body.kiosk #home-btn span { width: 14px; height: 14px; }
   box-shadow: 0 1px 1px rgba(0,0,0,.4);
 }
 #page-dots i.on { background: rgba(255,255,255,.95); }
+/* iOS 6 detail: the row starts with a tiny magnifier for the search page */
+#page-dots .dot-mag {
+  display: inline-flex; color: rgba(255,255,255,.5);
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
+}
+#page-dots .dot-mag svg { width: 9px; height: 9px; }
 
 #dock {
   position: absolute; bottom: 0; left: 0; right: 0; height: 94px;

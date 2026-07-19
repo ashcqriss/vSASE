@@ -532,7 +532,8 @@ IOS.register({
                  : { label: "Turn Passcode On", onTap: () => PasscodeUI.enable(() => { nav.pop(); generalView(); }) },
               { label: "Cancel", style: "cancel" }]);
           } }),
-        cell({ label: "Keyboard", chev: true, onTap: () => showAlert({ title: "Keyboard", text: "Layout: on-screen QWERTY.\nYour physical keyboard also works — the future is now." }) })),
+        cell({ label: "Keyboard", chev: true, onTap: () => showAlert({ title: "Keyboard", text: "Layout: on-screen QWERTY.\nYour physical keyboard also works — the future is now." }) }),
+        cell({ label: "Battery Percentage", right: toggle(Prefs.get("battPct", true), v => { Prefs.set("battPct", v); window.DND && DND.refresh(); }), cls: "static" })),
       group(
         cell({ label: "Reset", chev: true, onTap: () => showSheet([
           { label: "Erase All Content and Settings", style: "destructive", onTap: () => {
@@ -591,11 +592,32 @@ IOS.register({
         }))));
     });
 
+    /* tone pickers: tap = select + live preview, checkmark follows */
+    const tonePicker = (title, names, prefKey, def, preview) => () => {
+      const list = h("div", "group");
+      names.forEach(n => {
+        const c = cell({ label: n, onTap: () => {
+          Prefs.set(prefKey, n); preview(n);
+          list.querySelectorAll(".c-check").forEach(x => x.remove());
+          c.append(h("div", "c-check", "✓"));
+        } });
+        if (Prefs.get(prefKey, def) === n) c.append(h("div", "c-check", "✓"));
+        list.append(c);
+      });
+      nav.push(navView(
+        navbar(title, { left: backBtn("Sounds", () => nav.pop()) }),
+        h("div", "content grouped", list,
+          h("div", "group-foot", "Tap a tone to hear it. Synthesized live — no audio files on this entire telephone."))));
+    };
+    const ringtonePicker = tonePicker("Ringtone", Snd.ringtoneNames(), "ringtone", "Marimba", n => Snd.ringtone(n));
+    const textTonePicker = tonePicker("Text Tone", Snd.textToneNames(), "textTone", "Tri-tone", n => Snd.textTone(n));
+
     const soundsView = sub("Sounds", () => h("div", "content grouped",
       group(
-        cell({ label: "Ringtone", value: "Marimba", chev: true, onTap: () => Snd.tri() }),
-        cell({ label: "Text Tone", value: "Tri-tone", chev: true, onTap: () => Snd.received() }),
-        cell({ label: "Keyboard Clicks", right: toggle(true, () => {}), cls: "static" }))));
+        cell({ label: "Ringtone", value: Prefs.get("ringtone", "Marimba"), chev: true, onTap: ringtonePicker }),
+        cell({ label: "Text Tone", value: Prefs.get("textTone", "Tri-tone"), chev: true, onTap: textTonePicker }),
+        cell({ label: "Keyboard Clicks", right: toggle(Prefs.get("kbClicks", true), v => Prefs.set("kbClicks", v)), cls: "static" })),
+      h("div", "group-foot", "The ringtone also rings incoming calls; the text tone plays for every banner.")));
 
     const messagesView = sub("Messages", () => h("div", "content grouped",
       group(cell({ label: "iMessage", right: toggle(true, () => {}), cls: "static" })),
@@ -612,7 +634,8 @@ IOS.register({
                  right: toggle(Prefs.get("airplane", false), v => { Prefs.set("airplane", v); IOS.refreshSignal(); }), cls: "static" }),
           cell({ label: "Wi-Fi", ico: Glyphs.wifi(), icoBg: "linear-gradient(#6f9be8,#2255c8)", value: Prefs.get("wifi", true) ? "archnet-5G" : "Off", chev: true, onTap: wifiView }),
           cell({ label: "Bluetooth", ico: Glyphs.bluetooth(), icoBg: "linear-gradient(#6f9be8,#1a44b0)", value: "Off", chev: true, onTap: () => {} }),
-          cell({ label: "Do Not Disturb", ico: Glyphs.moon(), icoBg: "linear-gradient(#8a6ad0,#4a2a98)", right: toggle(false, () => {}), cls: "static" })),
+          cell({ label: "Do Not Disturb", ico: Glyphs.moon(), icoBg: "linear-gradient(#8a6ad0,#4a2a98)",
+                 right: toggle(Prefs.get("dnd", false), v => { Prefs.set("dnd", v); window.DND && DND.refresh(); }), cls: "static" })),
         group(
           cell({ label: "Notifications", ico: Glyphs.bell(), icoBg: "linear-gradient(#f07a6a,#c02a1a)", chev: true, onTap: () => {} }),
           cell({ label: "General", ico: Glyphs.gear(), icoBg: "linear-gradient(#b0b8c2,#767f8b)", chev: true, onTap: generalView }),

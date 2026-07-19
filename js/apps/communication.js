@@ -509,28 +509,44 @@ IOS.register({
   badge: () => MAILBOX.filter(m => m.unread).length,
   render(root) {
     const nav = new UINav(root);
+    const sent = () => Prefs.get("sentMail", []);
+
+    function mailRow(m, onTap) {
+      const row = h("div", "cell",
+        h("div", "msg-unread" + (m.unread ? "" : " off")),
+        h("div", "msg-cell-main",
+          h("div", "msg-cell-top",
+            h("span", "mail-from", m.from),
+            h("span", "msg-cell-time", m.time + " ›")),
+          h("div", "mail-subj", m.subject),
+          h("div", "msg-cell-preview", m.body[0] + " " + (m.body[1] || ""))));
+      row.addEventListener("click", () => { Snd.click(); onTap(); });
+      return row;
+    }
+
+    function mailboxesView() {
+      const unread = MAILBOX.filter(m => m.unread).length;
+      return navView(
+        navbar("Mailboxes"),
+        h("div", "content grouped",
+          group(
+            cell({ label: "Inbox", ico: Glyphs.mailbox ? Glyphs.mailbox() : Glyphs.folder(), icoBg: "linear-gradient(#6f9be8,#2255c8)",
+                   value: unread ? String(unread) : null, chev: true, onTap: () => nav.push(inboxView()) }),
+            cell({ label: "Sent", ico: Glyphs.reply(), icoBg: "linear-gradient(#9aa6b8,#5c6a80)",
+                   value: sent().length ? String(sent().length) : null, chev: true, onTap: () => nav.push(sentView()) })),
+          h("div", "group-foot", "1 account · arch@example.com · Updated just now")));
+    }
 
     function inboxView() {
       const list = h("div", "content list msg-list");
-      MAILBOX.forEach(m => {
-        const row = h("div", "cell",
-          h("div", "msg-unread" + (m.unread ? "" : " off")),
-          h("div", "msg-cell-main",
-            h("div", "msg-cell-top",
-              h("span", "mail-from", m.from),
-              h("span", "msg-cell-time", m.time + " ›")),
-            h("div", "mail-subj", m.subject),
-            h("div", "msg-cell-preview", m.body[0] + " " + (m.body[1] || ""))));
-        row.addEventListener("click", () => { Snd.click(); m.unread = false; nav.push(messageView(m)); });
-        list.append(row);
-      });
+      MAILBOX.forEach(m => list.append(mailRow(m, () => { m.unread = false; nav.push(messageView(m, "Inbox")); })));
       const compose = h("span", { class: "tb-ico", html: Glyphs.compose() });
       compose.addEventListener("click", () => nav.push(composeView()));
       const refresh = h("span", { class: "tb-ico", html: Glyphs.refresh() });
       refresh.addEventListener("click", () => { Snd.click(); showAlert({ title: "Mail", text: "Checking for Mail…\nEverything is up to date (btw)." }); });
       return navView(
         navbar("Inbox" + (MAILBOX.some(m => m.unread) ? " (" + MAILBOX.filter(m => m.unread).length + ")" : ""), {
-          left: navBtn("Mailboxes", () => {}, "back"),
+          left: backBtn("Mailboxes", () => nav.pop()),
           right: navBtn("Edit", () => {})
         }),
         list,
@@ -540,36 +556,65 @@ IOS.register({
           h("span", { class: "tb-ico", html: Glyphs.reply() }), compose));
     }
 
-    function messageView(m) {
+    function sentView() {
+      const list = h("div", "content list msg-list");
+      if (!sent().length)
+        list.append(h("div", { style: { textAlign: "center", color: "#8a919d", padding: "40px 20px", fontWeight: "bold" } },
+          "No Sent Mail"));
+      sent().forEach(m => list.append(mailRow(m, () => nav.push(messageView(m, "Sent")))));
       return navView(
-        navbar(m.from, { left: backBtn("Inbox", () => nav.pop()) }),
-        h("div", "content",
-          h("div", "mail-hdr",
-            h("div", "h-row", h("b", null, m.from)),
-            h("div", "h-row", m.subject),
-            h("div", "h-row", "Today " + m.time)),
-          h("div", "mail-body-view", m.body.map(p => h("p", null, p)))));
+        navbar("Sent", { left: backBtn("Mailboxes", () => nav.pop()) }),
+        list);
     }
 
-    function composeView() {
+    function messageView(m, from) {
+      const reply = h("span", { class: "tb-ico", html: Glyphs.reply() });
+      reply.addEventListener("click", () => { Snd.click(); nav.push(composeView({
+        to: m.from === "Me" ? (m.to || "") : m.from,
+        subj: (m.subject.startsWith("Re:") ? "" : "Re: ") + m.subject })); });
+      return navView(
+        navbar(m.from, { left: backBtn(from, () => nav.pop()) }),
+        h("div", "content",
+          h("div", "mail-hdr",
+            h("div", "h-row", h("b", null, m.from), m.to ? " → " + m.to : null),
+            h("div", "h-row", m.subject),
+            h("div", "h-row", "Today " + m.time)),
+          h("div", "mail-body-view", m.body.map(p => h("p", null, p)))),
+        h("div", "toolbar",
+          h("span", { class: "tb-ico disabled", html: Glyphs.folder() }),
+          h("span", { class: "tb-ico disabled", html: Glyphs.trash() }),
+          reply));
+    }
+
+    function composeView(prefill = {}) {
       const to = kbField("To:", { returnLabel: "next" });
       const subj = kbField("Subject", { returnLabel: "next" });
       const bodyF = kbField("", { returnLabel: "return" });
+      if (prefill.to) { to._value = prefill.to; to._renderValue && to._renderValue(); }
+      if (prefill.subj) { subj._value = prefill.subj; subj._renderValue && subj._renderValue(); }
       bodyF.style.minHeight = "120px";
       bodyF.style.whiteSpace = "normal";
       return navView(
         navbar("New Message", {
-          left: navBtn("Cancel", () => nav.pop()),
+          left: navBtn("Cancel", () => { KB.close(); nav.pop(); }),
           right: navBtn("Send", () => {
+            KB.close();
+            const msg = {
+              from: "Me", to: to._value || "(no recipient)",
+              subject: subj._value || "(no subject)",
+              time: fmtTime(new Date()),
+              body: [bodyF._value || "(no text — the linen speaks for itself)"]
+            };
+            Prefs.set("sentMail", [msg, ...sent()].slice(0, 30));
             Snd.sent();
             nav.pop();
-            showAlert({ title: "Sent", text: "Your message has been delivered to the outbox of imagination." });
           }, "blue")
         }),
         h("div", { class: "content", style: { padding: "8px", display: "flex", flexDirection: "column", gap: "6px" } },
           to, subj, bodyF));
     }
 
-    nav.push(inboxView(), false);
+    nav.push(mailboxesView(), false);
+    nav.push(inboxView());
   }
 });

@@ -15,10 +15,24 @@ const ShellX = (() => {
      ============================================================= */
   const NOTIFS = []; // {app, title, text, time}
 
+  /* ---- Do Not Disturb: iOS 6's headline feature, for real ---- */
+  const DND = {
+    active: () => Prefs.get("dnd", false),
+    refresh() {
+      const m = document.querySelector(".sb-moon");
+      if (m) m.classList.toggle("hidden", !DND.active());
+      const pct = document.querySelector(".sb-batt-pct");
+      if (pct) pct.classList.toggle("hidden", !Prefs.get("battPct", true));
+    }
+  };
+  window.DND = DND;
+  DND.refresh();
+
   const Notify = {
     push(appId, title, text, { silent = false } = {}) {
       NOTIFS.unshift({ app: appId, title, text, time: fmtTime(new Date()) });
       if (NOTIFS.length > 30) NOTIFS.pop();
+      if (DND.active()) { if (IOS.state === "home") IOS.buildHome(); return; } // straight to the NC list, no light, no sound
       if (!silent) Snd.received();
       const def = IOS.app(appId);
       const b = h("div", "nc-banner",
@@ -302,7 +316,13 @@ const ShellX = (() => {
       grid.append(b);
     });
     pcEl.append(h("div", "pc-title", title), dots, grid,
-      h("button", { class: "po-cancel", onclick: () => { pcClose(); } }, "Cancel"));
+      h("button", { class: "po-cancel", onclick: () => { pcClose(); } }, "Cancel"),
+      h("button", { class: "pc-emergency", onclick: () => {
+        Snd.click();
+        showAlert({ title: "Emergency Call", text: "Dial 112 / 911?", buttons: [
+          { label: "Cancel" },
+          { label: "Call", onTap: () => { pcClose(); IncomingCall.outgoing("Emergency — 112"); } }] });
+      } }, "Emergency Call"));
     screen.append(pcEl);
   }
   // Settings hooks into this
@@ -426,7 +446,12 @@ const ShellX = (() => {
     }
     function show(name, number, { native = false, callId = null } = {}) {
       stop();
-      Snd.ring(0); ringIv = setInterval(() => Snd.ring(0), 2600);
+      if (window.DND && DND.active()) {
+        // silenced: straight to the missed-call ledger, screen stays dark
+        Notify.push("phone", name || number || "Unknown", "Missed Call · Do Not Disturb");
+        return;
+      }
+      Snd.ringtone(); ringIv = setInterval(() => Snd.ringtone(), 2600);
       ui = h("div", { class: "call-screen", style: { zIndex: 320 } },
         h("div", "call-name", name || number || "Unknown"),
         h("div", "call-state", native ? "incoming call (modem)" : "incoming call"),

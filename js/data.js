@@ -392,18 +392,43 @@ const Snd = (() => {
     "7": [852, 1209], "8": [852, 1336], "9": [852, 1477],
     "*": [941, 1209], "0": [941, 1336], "#": [941, 1477]
   };
-  return {
+  /* original synthesized melodies — every "ringtone" is a WebAudio phrase */
+  const RINGTONES = {
+    "Marimba": () => [784, 659, 784, 1046, 784, 659, 523, 659].forEach((f, i) =>
+      tone(f, 0.22, { type: "triangle", gain: 0.11, when: i * 0.19 })),
+    "Old Phone": () => [0, 0.35, 1.3, 1.65].forEach(w => {
+      tone(440, 0.28, { gain: 0.06, when: w }); tone(480, 0.28, { gain: 0.06, when: w }); }),
+    "Chimes": () => [1318, 1046, 880, 698].forEach((f, i) =>
+      tone(f, 0.8, { gain: 0.08, when: i * 0.42 })),
+    "Digital": () => [523, 659, 784, 1046, 784, 659].forEach((f, i) =>
+      tone(f, 0.11, { type: "square", gain: 0.05, when: i * 0.14 })),
+    "Strum": () => [330, 415, 494, 659, 831].forEach((f, i) =>
+      tone(f, 0.55, { type: "triangle", gain: 0.07, when: i * 0.07 }))
+  };
+  const TEXTTONES = {
+    "Tri-tone": () => [1046, 1318, 1568].forEach((f, i) => tone(f, 0.28, { gain: 0.09, when: i * 0.18 })),
+    "Ding": () => tone(1568, 0.5, { gain: 0.1 }),
+    "Aurora": () => [659, 880, 1174].forEach((f, i) => tone(f, 0.3, { gain: 0.07, when: i * 0.12 })),
+    "Pop": () => tone(900, 0.06, { type: "square", gain: 0.09, freq2: 500 })
+  };
+  const pref = (k, d) => (typeof Prefs !== "undefined" ? Prefs.get(k, d) : d);
+  const api = {
     unlock() { ac(); },
     click() { tone(1800, 0.03, { type: "square", gain: 0.04 }); },
-    key() { tone(1200, 0.035, { type: "square", gain: 0.05 }); },
+    key() { if (pref("kbClicks", true)) tone(1200, 0.035, { type: "square", gain: 0.05 }); },
     dtmf(k) { const p = DTMF[k]; if (p) { tone(p[0], 0.12, { gain: 0.07 }); tone(p[1], 0.12, { gain: 0.07 }); } },
     sent() { tone(880, 0.18, { type: "sine", gain: 0.1, freq2: 1760 }); },
-    received() { tone(1318, 0.12, { gain: 0.1 }); tone(1760, 0.22, { gain: 0.08, when: 0.1 }); },
+    received() { api.textTone(); },
     lockSnd() { tone(320, 0.05, { type: "square", gain: 0.08 }); tone(180, 0.06, { type: "square", gain: 0.08, when: 0.05 }); },
     unlockSnd() { tone(500, 0.05, { type: "square", gain: 0.07 }); tone(900, 0.07, { type: "square", gain: 0.06, when: 0.04 }); },
     ring(when = 0) { tone(440, 0.9, { gain: 0.05, when }); tone(480, 0.9, { gain: 0.05, when }); },
-    tri() { [1046, 1318, 1568].forEach((f, i) => tone(f, 0.28, { gain: 0.09, when: i * 0.18 })); }
+    ringtone(name) { (RINGTONES[name || pref("ringtone", "Marimba")] || RINGTONES["Marimba"])(); },
+    textTone(name) { (TEXTTONES[name || pref("textTone", "Tri-tone")] || TEXTTONES["Tri-tone"])(); },
+    ringtoneNames: () => Object.keys(RINGTONES),
+    textToneNames: () => Object.keys(TEXTTONES),
+    tri() { TEXTTONES["Tri-tone"](); }
   };
+  return api;
 })();
 
 /* ---------------- Persistent settings ---------------- */

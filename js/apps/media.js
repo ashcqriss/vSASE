@@ -14,58 +14,107 @@ IOS.register({
   name: "Photos",
   icon: Icons.photos,
   statusbar: "blue",
+  onClose() { clearInterval(this._ssTimer); },
   render(root) {
-    const grid = h("div", "photo-grid");
-    PhotoStore.all().forEach((url, i) => {
-      const img = h("img", { src: url });
-      img.addEventListener("click", () => viewer(i));
-      grid.append(img);
-    });
+    const nav = new UINav(root);
+    const app = this;
 
-    function viewer(i) {
-      const img = h("img", { src: PhotoStore.get(i) });
-      let idx = i;
-      const trash = h("div", { class: "pv-trash", html: Glyphs.trash() });
-      trash.addEventListener("click", e => {
-        e.stopPropagation();
-        showSheet([
-          { label: "Delete Photo", style: "destructive", onTap: () => {
-              PhotoStore.remove(idx);
-              v.remove();
-              grid.innerHTML = "";
-              PhotoStore.all().forEach((url, k) => {
-                const im = h("img", { src: url });
-                im.addEventListener("click", () => viewer(k));
-                grid.append(im);
-              });
-            } },
-          { label: "Cancel", style: "cancel" }]);
-      });
-      const v = h("div", "photo-viewer", img, trash);
-      v.addEventListener("click", e => {
-        const r = v.getBoundingClientRect();
-        const x = e.clientX - r.left;
-        if (x > r.width * 0.66) idx = (idx + 1) % PhotoStore.count();
-        else if (x < r.width * 0.33) idx = (idx - 1 + PhotoStore.count()) % PhotoStore.count();
-        else { v.remove(); return; }
-        img.src = PhotoStore.get(idx);
-        Snd.click();
-      });
-      root.append(v);
+    /* albums are live functions returning PhotoStore indices */
+    const ALBUMS = [
+      ["Camera Roll", () => PhotoStore.all().map((_, i) => i)],
+      ["Arch Moments", () => PhotoStore.all().map((_, i) => i).filter(i => i % 2 === 0)],
+      ["Favorites", () => PhotoStore.all().map((_, i) => i).slice(0, 3)]
+    ];
+
+    function slideshow(idxs) {
+      const list = idxs();
+      if (!list.length) return;
+      const ov = h("div", "slideshow");
+      let pos = 0, cur = null;
+      function step() {
+        const im = h("img", { src: PhotoStore.get(list[pos % list.length]) });
+        ov.append(im);
+        requestAnimationFrame(() => requestAnimationFrame(() => im.classList.add("show")));
+        if (cur) { const old = cur; old.classList.remove("show"); setTimeout(() => old.remove(), 1000); }
+        cur = im;
+        pos++;
+      }
+      ov.addEventListener("click", () => { clearInterval(app._ssTimer); ov.remove(); });
+      app._ssTimer = setInterval(step, 3200);
+      step();
+      root.append(ov);
     }
 
-    root.append(
-      navbar("Camera Roll", {
-        left: backBtn("Albums", () => {}),
-        right: navBtn(gl("share", 15), () => showSheet([
-          { label: "Email Photo", onTap: () => IOS.open("mail") },
-          { label: "Message", onTap: () => IOS.open("messages") },
-          { label: "Use as Wallpaper", onTap: () => showAlert({ title: "Wallpaper", text: "This wallpaper is too beautiful. Request denied by the Skeuomorphic Texture Daemon." }) },
-          { label: "Cancel", style: "cancel" }])) }),
-      h("div", { class: "content", style: { background: "#000" } }, grid),
-      h("div", "toolbar",
-        h("span", { class: "tb-ico", html: Glyphs.play() }),
-        h("span", { class: "tb-ico disabled", html: Glyphs.trash() })));
+    function rollView(name, idxs) {
+      const grid = h("div", "photo-grid");
+      function paint() {
+        grid.innerHTML = "";
+        idxs().forEach((storeIdx, pos) => {
+          const img = h("img", { src: PhotoStore.get(storeIdx) });
+          img.addEventListener("click", () => viewer(pos));
+          grid.append(img);
+        });
+      }
+      function viewer(pos) {
+        const list = idxs();
+        const img = h("img", { src: PhotoStore.get(list[pos]) });
+        const trash = h("div", { class: "pv-trash", html: Glyphs.trash() });
+        trash.addEventListener("click", e => {
+          e.stopPropagation();
+          showSheet([
+            { label: "Delete Photo", style: "destructive", onTap: () => {
+                PhotoStore.remove(idxs()[pos]);
+                v.remove();
+                paint();
+              } },
+            { label: "Cancel", style: "cancel" }]);
+        });
+        const v = h("div", "photo-viewer", img, trash);
+        v.addEventListener("click", e => {
+          const r = v.getBoundingClientRect();
+          const x = e.clientX - r.left;
+          const n = idxs().length;
+          if (!n) { v.remove(); return; }
+          if (x > r.width * 0.66) pos = (pos + 1) % n;
+          else if (x < r.width * 0.33) pos = (pos - 1 + n) % n;
+          else { v.remove(); return; }
+          img.src = PhotoStore.get(idxs()[pos]);
+          Snd.click();
+        });
+        root.append(v);
+      }
+      paint();
+      return navView(
+        navbar(name, {
+          left: backBtn("Albums", () => nav.pop()),
+          right: navBtn(gl("share", 15), () => showSheet([
+            { label: "Email Photo", onTap: () => IOS.open("mail") },
+            { label: "Message", onTap: () => IOS.open("messages") },
+            { label: "Use as Wallpaper", onTap: () => showAlert({ title: "Wallpaper", text: "This wallpaper is too beautiful. Request denied by the Skeuomorphic Texture Daemon." }) },
+            { label: "Cancel", style: "cancel" }])) }),
+        h("div", { class: "content", style: { background: "#000" } }, grid,
+          h("div", { style: { textAlign: "center", color: "#8a919d", padding: "12px 0 16px", fontSize: "14px", fontWeight: "bold" } },
+            idxs().length + (idxs().length === 1 ? " Photo" : " Photos"))),
+        h("div", "toolbar",
+          h("span", { class: "tb-ico", html: Glyphs.play(), onclick: () => { Snd.click(); slideshow(idxs); } }),
+          h("span", { class: "tb-ico disabled", html: Glyphs.trash() })));
+    }
+
+    function albumsView() {
+      const list = h("div", "content list");
+      ALBUMS.forEach(([name, idxs]) => {
+        const n = idxs().length;
+        const row = h("div", "cell",
+          h("img", { class: "album-thumb", src: PhotoStore.get(idxs()[0] || 0) }),
+          h("div", "c-label", name, h("span", "c-sub", n + (n === 1 ? " Photo" : " Photos"))),
+          h("div", "c-chev", "›"));
+        row.addEventListener("click", () => { Snd.click(); nav.push(rollView(name, idxs)); });
+        list.append(row);
+      });
+      return navView(navbar("Albums"), list);
+    }
+
+    nav.push(albumsView(), false);
   }
 });
 
