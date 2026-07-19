@@ -5,3 +5,5 @@ node_modules/
 icons/*.png
 wallpapers/*
 !wallpapers/README.md
+videos/*
+!videos/README.md

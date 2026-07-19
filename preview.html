@@ -6542,7 +6542,7 @@ IOS.register({
     /* recorded clips from the Camera play in a real <video> element */
     function clipPlayer(clip) {
       const v = h("video", { src: clip.url, style: { width: "100%", background: "#000" } });
-      v.muted = true;
+      v.muted = clip.muted !== false; // camera clips stay muted; drop-in movies get sound
       const bar = h("i");
       const playBtn = h("span", { class: "tb-ico", html: Glyphs.pause() });
       v.addEventListener("timeupdate", () => {
@@ -6563,6 +6563,39 @@ IOS.register({
     }
 
     const list = h("div", "content list");
+
+    /* drop-in movies: videos/v1..v8.(mp4|webm) on disk are auto-detected and
+       played in the real <video> element. The repo ships none — your local
+       files live in the gitignored videos/ folder and never get pushed. */
+    function probeLocalVideos(after) {
+      const found = [];
+      let pending = 0, done = false;
+      const finish = () => { if (!done && pending === 0) { done = true; after(found); } };
+      for (let i = 1; i <= 8; i++) {
+        for (const ext of ["mp4", "webm"]) {
+          pending++;
+          const src = "videos/v" + i + "." + ext;
+          const probe = document.createElement("video");
+          probe.preload = "metadata";
+          probe.muted = true;
+          const settle = ok => {
+            if (ok) found.push({ name: "v" + i, url: src,
+              dur: isFinite(probe.duration) ? fmtDur(probe.duration) : "" });
+            probe.src = ""; pending--; finish();
+          };
+          probe.addEventListener("loadedmetadata", () => settle(true), { once: true });
+          probe.addEventListener("error", () => settle(false), { once: true });
+          probe.src = src;
+        }
+      }
+      // nothing to probe / all synchronous-miss guard
+      setTimeout(finish, 1500);
+    }
+    function fmtDur(s) {
+      s = Math.floor(s);
+      return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    }
+
     function paintList() {
       list.innerHTML = "";
       if (ClipStore.count()) {
@@ -6572,6 +6605,17 @@ IOS.register({
           h("div", "store-info", h("b", null, c.name),
             h("span", null, c.dur + (c.source === "camera" ? " · recorded with the camera" : " · recorded from the viewfinder"))))));
       }
+      const localSec = h("div");
+      list.append(localSec);
+      probeLocalVideos(vids => {
+        if (!vids.length) return;
+        localSec.append(h("div", "ct-sec", "My Videos"));
+        vids.sort((a, b) => a.name.localeCompare(b.name)).forEach(v =>
+          localSec.append(h("div", { class: "store-row", onclick: () => { Snd.click(); clipPlayer({ name: v.name, url: v.url, muted: false }); } },
+            h("div", { class: "store-app-ico", style: { background: "#2b2f38" }, html: Glyphs.play() }),
+            h("div", "store-info", h("b", null, v.name),
+              h("span", null, (v.dur ? v.dur + " · " : "") + "from videos/ · plays for real")))));
+      });
       list.append(h("div", "ct-sec", "Films"));
       FILMS.forEach(f => list.append(h("div", { class: "store-row", onclick: () => { Snd.click(); player(f); } },
         h("div", { class: "store-app-ico", style: { background: f.color }, html: Glyphs.play() }),

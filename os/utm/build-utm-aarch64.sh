@@ -58,8 +58,10 @@ run "pacman -S --noconfirm --needed firefox || true"
 echo ":: installing SpringBoard"
 mkdir -p "$ROOT/usr/share/ios6"
 cp -r "$REPO/index.html" "$REPO/css" "$REPO/js" "$REPO/icons" "$ROOT/usr/share/ios6/"
-# wallpapers drop-in folder rides along when present (gitignored in the repo)
-[ -d "$REPO/wallpapers" ] && cp -r "$REPO/wallpapers" "$ROOT/usr/share/ios6/" || true
+# drop-in folders ride along when present (gitignored in the repo)
+for d in wallpapers videos; do
+  [ -d "$REPO/$d" ] && cp -r "$REPO/$d" "$ROOT/usr/share/ios6/" || true
+done
 install -Dm755 "$REPO/os/bin/ios6-shell" "$ROOT/usr/bin/ios6-shell"
 install -Dm755 "$REPO/os/bin/ios6d"      "$ROOT/usr/bin/ios6d"
 install -Dm644 "$REPO/os/systemd/ios6d.service" "$ROOT/etc/systemd/system/ios6d.service"

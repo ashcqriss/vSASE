@@ -123,13 +123,16 @@ Wallpaper), a brightness slider that really dims the screen, a working
 **volume rocker** with the translucent bezel HUD that actually scales every
 synthesized sound, sleep/wake.
 
-**Bring the real artwork (locally)** — the shell prefers your files over
+**Bring the real media (locally)** — the shell prefers your files over
 its built-in recreations: PNGs dropped into `icons/` replace home-screen
-icons by filename, and images dropped into `wallpapers/` (wp1–wp8) appear
-as extra tiles in Settings → Brightness & Wallpaper. Both folders are
-gitignored on purpose: era-original Apple artwork you download stays on
-your machine and is never committed or pushed by this repo. See
-`icons/README.md` and `wallpapers/README.md`.
+icons by filename, images dropped into `wallpapers/` (wp1–wp8) appear as
+extra tiles in Settings → Brightness & Wallpaper, and clips dropped into
+`videos/` (v1–v8, `.mp4`/`.webm`) show up under **My Videos** in the
+Videos app and play for real. All three folders are gitignored on purpose:
+copyrighted artwork or footage you download stays on your machine and is
+never committed or pushed by this repo — but a personal ISO/UTM build
+copies whatever you've dropped in, so your own device image carries it.
+See `icons/README.md`, `wallpapers/README.md` and `videos/README.md`.
 
 **Telephoning** — Favorites / Recents / Contacts / Keypad / Voicemail, DTMF
 tones, live contact lookup while dialing, full in-call screen. Calls go

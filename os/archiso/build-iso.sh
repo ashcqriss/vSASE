@@ -40,7 +40,7 @@ echo ":: installing the SpringBoard UI"
 mkdir -p "$PROFILE/airootfs/usr/share/ios6"
 cp -r "$REPO/index.html" "$REPO/css" "$REPO/js" "$PROFILE/airootfs/usr/share/ios6/"
 # local artwork drop-ins ride along into YOUR image (gitignored in the repo)
-for d in icons wallpapers; do
+for d in icons wallpapers videos; do
   [ -d "$REPO/$d" ] && cp -r "$REPO/$d" "$PROFILE/airootfs/usr/share/ios6/"
 done
 
